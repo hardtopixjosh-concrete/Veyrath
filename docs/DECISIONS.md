@@ -43,3 +43,8 @@ Short log of decisions made for this codebase. Newest last.
 17. **HUD connection indicator thresholds:** Good ≤ 100 ms ping, ≤ 20 ms jitter, ≥ 27 updates/s;
     Poor > 200 ms, > 50 ms jitter or < 20 updates/s; Fair in between; "No updates" after 1 s
     without a snapshot. Starting points to revisit with friend-test numbers.
+18. **2026-10-22 — `packages/content` (Milestone 3 step 0, placeholders only).** Every hero,
+    enemy or boss is one JSON file with a `gameplay` half (server rules) and a `presentation` half
+    (client look). A hand-written validator rebuilds only known fields and fails on bad data; the
+    content version hashes the gameplay halves only, so visual-only changes don't force updates.
+    Not yet wired into the simulation; the placeholder files mirror the Milestone 1 constants.

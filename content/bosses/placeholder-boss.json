@@ -1,0 +1,17 @@
+{
+  "id": "placeholder-boss",
+  "kind": "boss",
+  "gameplay": {
+    "maxHp": 1000,
+    "speed": 90,
+    "radius": 48,
+    "attacks": [
+      { "id": "slam", "damage": 25, "reach": 60, "cooldownTicks": 45, "windUpTicks": 15 }
+    ],
+    "ai": { "behaviour": "chase", "retargetTicks": 30, "aggroRange": 400 }
+  },
+  "presentation": {
+    "name": "Placeholder Boss",
+    "placeholder": { "shape": "square", "color": "#ba68c8" }
+  }
+}

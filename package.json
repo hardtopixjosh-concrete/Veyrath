@@ -29,7 +29,7 @@
     "metrics:report": "node scripts/metrics-report.mjs",
     "package:win": "npm run build && npm run package -w @veyrath/desktop && node scripts/copy-server-to-release.mjs",
     "package:friend": "npm run package:win && node scripts/package-friend.mjs",
-    "typecheck": "tsc -p packages/sim && tsc -p packages/protocol && tsc -p services/game-server && tsc -p packages/client && tsc -p apps/desktop && tsc -p tests",
+    "typecheck": "tsc -p packages/sim && tsc -p packages/protocol && tsc -p packages/content && tsc -p services/game-server && tsc -p packages/client && tsc -p apps/desktop && tsc -p tests",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

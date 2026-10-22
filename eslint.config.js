@@ -20,7 +20,7 @@ export default defineConfig(
   {
     // The simulation and protocol must stay pure and deterministic: no platform APIs, no wall clock,
     // no unseeded randomness.
-    files: ['packages/sim/**/*.ts', 'packages/protocol/**/*.ts'],
+    files: ['packages/sim/**/*.ts', 'packages/protocol/**/*.ts', 'packages/content/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', { patterns: ['node:*', 'electron', 'ws'] }],
       'no-restricted-globals': ['error', 'window', 'document', 'performance', 'process'],

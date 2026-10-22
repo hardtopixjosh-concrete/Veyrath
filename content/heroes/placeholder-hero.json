@@ -1,0 +1,14 @@
+{
+  "id": "placeholder-hero",
+  "kind": "hero",
+  "gameplay": {
+    "maxHp": 100,
+    "speed": 220,
+    "radius": 16,
+    "attacks": [{ "id": "basic", "damage": 10, "reach": 40, "cooldownTicks": 12, "windUpTicks": 0 }]
+  },
+  "presentation": {
+    "name": "Placeholder Hero",
+    "placeholder": { "shape": "circle", "color": "#4fc3f7" }
+  }
+}

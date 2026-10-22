@@ -1,0 +1,15 @@
+{
+  "id": "placeholder-enemy",
+  "kind": "enemy",
+  "gameplay": {
+    "maxHp": 100,
+    "speed": 60,
+    "radius": 24,
+    "attacks": [],
+    "ai": { "behaviour": "wander", "retargetTicks": 150, "aggroRange": 0 }
+  },
+  "presentation": {
+    "name": "Placeholder Enemy",
+    "placeholder": { "shape": "square", "color": "#e5534b" }
+  }
+}

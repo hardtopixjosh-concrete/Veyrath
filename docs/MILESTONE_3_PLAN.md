@@ -85,7 +85,8 @@ This step uses placeholders only, so it doesn't need Lights-end:
 2. **Asset loading:** a manifest, a loading screen, and assets bundled inside the app, never
    downloaded at runtime.
 3. **`packages/content`:** types and validator, with one placeholder hero and enemy defined as
-   data instead of hard-coded constants.
+   data instead of hard-coded constants. _Done 2026-10-22 (types, validator, content version,
+   placeholder hero/enemy/boss files, 20 tests). Not yet wired into the simulation._
 4. **Placeholder sounds:** a tiny set of free-to-use beeps and thumps for swing, hit, death and
    UI, wired to game events, so your real sounds later are a file swap, not code.
 5. **Generalize the simulation:** many enemies instead of one, entities created from content
