@@ -48,3 +48,7 @@ Short log of decisions made for this codebase. Newest last.
     (client look). A hand-written validator rebuilds only known fields and fails on bad data; the
     content version hashes the gameplay halves only, so visual-only changes don't force updates.
     Not yet wired into the simulation; the placeholder files mirror the Milestone 1 constants.
+19. **2026-10-22 — Roadmap revised (see ROADMAP.md).** Host-a-game (server bundled into the
+    client, host's PC runs it) instead of dedicated servers; Steam app ID deferred (no fee yet),
+    so builds ship as zips over Tailscale until then; browser build dropped; no custom
+    auto-updater since Steam will handle updates later.
