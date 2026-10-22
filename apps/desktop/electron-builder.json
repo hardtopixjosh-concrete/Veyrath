@@ -1,0 +1,16 @@
+{
+  "appId": "dev.veyrath.game",
+  "productName": "Veyrath",
+  "directories": {
+    "output": "release"
+  },
+  "files": ["build/**/*", "!build/**/*.map", "package.json"],
+  "asar": true,
+  "npmRebuild": false,
+  "win": {
+    "target": [
+      { "target": "dir", "arch": ["x64"] },
+      { "target": "zip", "arch": ["x64"] }
+    ]
+  }
+}

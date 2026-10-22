@@ -1,0 +1,18 @@
+{
+  "name": "@veyrath/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Veyrath desktop client",
+  "author": "Veyrath",
+  "main": "build/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/build.mjs && electron .",
+    "package": "electron-builder --win --x64 --config electron-builder.json"
+  },
+  "devDependencies": {
+    "@veyrath/client": "0.1.0",
+    "electron": "45.0.0",
+    "electron-builder": "^26.15.3"
+  }
+}

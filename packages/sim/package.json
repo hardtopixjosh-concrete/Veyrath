@@ -1,0 +1,10 @@
+{
+  "name": "@veyrath/sim",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure fixed-tick world simulation (no DOM, Node, or Electron APIs)",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

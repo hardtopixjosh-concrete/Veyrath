@@ -1,0 +1,19 @@
+{
+  "name": "@veyrath/game-server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone authoritative game server",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "start": "node scripts/build.mjs && node dist/veyrath-server.cjs"
+  },
+  "dependencies": {
+    "@veyrath/protocol": "0.1.0",
+    "@veyrath/sim": "0.1.0",
+    "ws": "^8.22.0"
+  }
+}

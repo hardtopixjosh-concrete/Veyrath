@@ -1,0 +1,13 @@
+{
+  "name": "@veyrath/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Typed, validated client/server messages",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@veyrath/sim": "0.1.0"
+  }
+}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Veyrath</title>
+  </head>
+  <body>
+    <canvas id="game"></canvas>
+
+    <div id="lobby" class="panel">
+      <h1>Veyrath</h1>
+      <p class="sub">Milestone 1 · network test build</p>
+      <label>Name <input id="name" maxlength="16" autocomplete="off" spellcheck="false" /></label>
+      <label
+        >Server
+        <input id="server" autocomplete="off" spellcheck="false" placeholder="ws://127.0.0.1:7777"
+      /></label>
+      <div class="row">
+        <button id="create" type="button">Create room</button>
+      </div>
+      <div class="row">
+        <input
+          id="room-code"
+          maxlength="5"
+          placeholder="CODE"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button id="join" type="button">Join room</button>
+      </div>
+      <p id="lobby-status" class="status"></p>
+      <p class="hint">WASD / arrows to move · Space or J to attack · F3 debug · Esc to leave</p>
+    </div>
+
+    <div id="hud" hidden>
+      <div>Room <strong id="hud-room">–</strong> · <span id="hud-status"></span></div>
+      <ul id="hud-players"></ul>
+      <button id="leave" type="button">Leave</button>
+    </div>
+
+    <div id="banner" hidden></div>
+    <pre id="overlay" hidden></pre>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
