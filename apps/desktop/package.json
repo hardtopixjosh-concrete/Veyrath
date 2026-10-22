@@ -8,11 +8,12 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "start": "node scripts/build.mjs && electron .",
-    "package": "electron-builder --win --x64 --config electron-builder.json"
+    "package": "electron-builder --win --x64 --config electron-builder.json --publish never"
   },
   "devDependencies": {
     "@veyrath/client": "0.1.0",
     "electron": "45.0.0",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "electron-updater": "^6.8.9"
   }
 }

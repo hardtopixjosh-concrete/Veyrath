@@ -90,6 +90,22 @@ Done on one PC before the real friend test. **None of this replaces the two-loca
 - In-game connection indicator (HUD dot + label: Good / Fair / Poor with ping, or Reconnecting /
   No updates): unit-tested; seen in a lagged two-window run showing "Poor · 180 ms" at 60 ms jitter.
 
+## Auto-update verification (2026-10-22)
+
+- `tests/integration/updates.test.ts` (12 tests): feed URL mapping; serves `latest.yml` (with
+  cache-busting query) and the installer; refuses other extensions, encoded/raw `..` traversal,
+  sub-paths, missing files, POST; serves nothing without an updates folder; the simulation still
+  ticks > 27 Hz with max tick < 20 ms while a 40 MB installer downloads.
+- **End to end on this PC with real installers** (built by `scripts/release.mjs --out=…`):
+  installed 0.2.0 silently, started a server offering 0.2.1, launched 0.2.0. It downloaded the
+  112 MB installer (about 0.2 s on loopback), installed it silently, and relaunched itself as
+  **0.2.1** about 10 s later with its window open; with the server still up it then reported
+  "up to date (0.2.1)", and with the server down it reported "update check skipped" and stayed
+  playable. Installed version confirmed from the app archive and the Windows uninstall entry. Test
+  installs were uninstalled afterwards.
+- **Not yet verified:** an update over Tailscale between two PCs (download speed depends on the
+  host's upload), and SmartScreen behaviour on the friend's PC for the installer and for updates.
+
 ## Known limitations
 
 - Everything was verified on **one PC over loopback**. RTT ≈ 0.3 ms; no latency, loss, jitter, NAT,

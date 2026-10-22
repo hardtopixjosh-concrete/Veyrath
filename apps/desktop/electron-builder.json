@@ -9,8 +9,29 @@
   "npmRebuild": false,
   "win": {
     "target": [
-      { "target": "dir", "arch": ["x64"] },
-      { "target": "zip", "arch": ["x64"] }
+      {
+        "target": "dir",
+        "arch": ["x64"]
+      },
+      {
+        "target": "zip",
+        "arch": ["x64"]
+      }
     ]
+  },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "artifactName": "Veyrath-Setup-${version}.${ext}",
+    "deleteAppDataOnUninstall": false
+  },
+  "publish": [
+    {
+      "provider": "generic",
+      "url": "http://127.0.0.1:7777/updates/"
+    }
+  ],
+  "extraMetadata": {
+    "name": "veyrath"
   }
 }

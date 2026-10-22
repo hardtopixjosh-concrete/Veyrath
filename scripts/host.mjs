@@ -7,7 +7,7 @@
 //   node scripts/host.mjs --port=7777
 //
 // Stop with Ctrl+C. The metrics file path is printed at start and end.
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { networkInterfaces } from 'node:os';
 import { resolve } from 'node:path';
 import { clientCommand, root, sleep, startProcess, startServer } from './lib.mjs';
@@ -61,15 +61,25 @@ const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const logsDir = resolve(root, 'logs');
 mkdirSync(logsDir, { recursive: true });
 const metricsFile = resolve(logsDir, `metrics-${stamp}.jsonl`);
+// Installed games fetch updates from this folder (filled by npm run release).
+const updatesDir = resolve(root, 'updates');
 
 const server = await startServer({
   port,
-  env: { VEYRATH_HOST: bindHost, VEYRATH_METRICS_FILE: metricsFile },
+  env: {
+    VEYRATH_HOST: bindHost,
+    VEYRATH_METRICS_FILE: metricsFile,
+    VEYRATH_UPDATES_DIR: updatesDir,
+  },
 });
 const urls = shareHosts.map((h) => `ws://${h}:${port}`);
 console.log('\n================ Veyrath host ================');
 console.log(`Server address for your friend:  ${urls.join('   or   ')}`);
 console.log(`Metrics file:                    ${metricsFile}`);
+const latest = resolve(updatesDir, 'latest.yml');
+console.log(
+  `Game updates:                    ${existsSync(latest) ? `serving ${/^version:\s*(\S+)/m.exec(readFileSync(latest, 'utf8'))?.[1]} from updates/` : 'none yet (npm run release)'}`,
+);
 console.log(
   'Windows may ask whether Node.js may accept connections: allow it on Private networks.',
 );

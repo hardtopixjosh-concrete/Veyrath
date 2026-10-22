@@ -52,3 +52,12 @@ Short log of decisions made for this codebase. Newest last.
     client, host's PC runs it) instead of dedicated servers; Steam app ID deferred (no fee yet),
     so builds ship as zips over Tailscale until then; browser build dropped; no custom
     auto-updater since Steam will handle updates later.
+20. **2026-10-22 — Auto-updates served by the host's game server** (reverses the "no custom
+    updater" part of 19 at the user's request). Friends install a per-user NSIS installer once;
+    electron-updater checks `http://<host>:<port>/updates/latest.yml` on every start (and when the
+    server reports a newer protocol), verifies the installer's SHA-512, installs silently and
+    relaunches. The feed URL is fixed in the main process from the baked config, never taken from
+    the page. Only files matching `name.(yml|exe|blockmap)` in `updates/` are served; full downloads
+    only (no range requests). Trust model: whoever runs the host's server can ship code to its
+    players — acceptable between friends over Tailscale; Steam (or signing) is the long-term answer.
+    Installed app name is `veyrath` (install dir and profile folder).

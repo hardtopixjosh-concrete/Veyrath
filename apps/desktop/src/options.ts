@@ -7,6 +7,8 @@ export interface LaunchOptions {
   instance: number;
   renderDelayMs: number;
   devtools: boolean;
+  /** --no-update: skip the auto-update check (troubleshooting). */
+  noUpdate: boolean;
   smoke: {
     role: 'host' | 'join';
     room: string | null;
@@ -99,6 +101,7 @@ export function parseLaunchOptions(
     instance: intArg(args, 'instance', 1, 9) ?? 1,
     renderDelayMs: intArg(args, 'render-delay', 0, 200) ?? 0,
     devtools: args.has('devtools'),
+    noUpdate: args.has('no-update'),
     smoke: role
       ? {
           role,

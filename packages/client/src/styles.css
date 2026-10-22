@@ -209,3 +209,19 @@ button:disabled {
     opacity: 0.2;
   }
 }
+
+.update {
+  margin: 0;
+  font-size: 13px;
+  color: #58a6ff;
+}
+
+.update[data-state='downloading'],
+.update[data-state='installing'] {
+  color: #f0b72f;
+  font-weight: 600;
+}
+
+.update[data-state='unavailable'] {
+  color: #8b949e;
+}

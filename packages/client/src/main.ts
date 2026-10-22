@@ -50,6 +50,17 @@ async function main(): Promise<void> {
   const hudStatus = el<HTMLSpanElement>('hud-status');
   const hudPlayers = el<HTMLUListElement>('hud-players');
   const banner = el<HTMLDivElement>('banner');
+  const updateStatus = el<HTMLParagraphElement>('update-status');
+  el<HTMLParagraphElement>('version').textContent =
+    `Test build · v${config.appVersion}${config.updatesEnabled ? ' · auto-updates on' : ''}`;
+  /** True while an update downloads or installs: joining now would just be interrupted. */
+  let updating = false;
+  let currentPhase: SessionPhase = 'idle';
+  const refreshLobbyButtons = (): void => {
+    for (const button of lobby.querySelectorAll('button')) {
+      button.disabled = currentPhase === 'connecting' || updating;
+    }
+  };
   const hudQuality = el<HTMLDivElement>('hud-quality');
   const hudQualityLabel = el<HTMLSpanElement>('hud-quality-label');
 
@@ -70,7 +81,8 @@ async function main(): Promise<void> {
     banner.textContent = detail;
     hudStatus.textContent = phase === 'in_room' ? 'connected' : detail;
     if (phase === 'idle' || phase === 'connecting') lobbyStatus.textContent = detail;
-    for (const button of lobby.querySelectorAll('button')) button.disabled = phase === 'connecting';
+    currentPhase = phase;
+    refreshLobbyButtons();
   };
 
   const session = new GameSession(
@@ -90,6 +102,10 @@ async function main(): Promise<void> {
       onError: (code, message) => {
         lobbyStatus.textContent = message;
         recorder?.onError(code, message);
+        if (code === 'version_mismatch' && config.updatesEnabled) {
+          lobbyStatus.textContent = 'Your game is older than the host’s. Updating…';
+          window.veyrath?.checkForUpdates?.();
+        }
       },
     },
   );
@@ -129,6 +145,35 @@ async function main(): Promise<void> {
   });
 
   showPhase('idle', 'Create a room, or join one with its code.');
+
+  let hideUpdateTimer: ReturnType<typeof setTimeout> | null = null;
+  window.veyrath?.onUpdateStatus?.((status) => {
+    if (hideUpdateTimer) clearTimeout(hideUpdateTimer);
+    updating = status.state === 'downloading' || status.state === 'installing';
+    updateStatus.hidden = false;
+    updateStatus.dataset.state = status.state;
+    switch (status.state) {
+      case 'checking':
+        updateStatus.textContent = 'Checking for updates…';
+        break;
+      case 'up-to-date':
+        updateStatus.textContent = `Up to date (v${status.version})`;
+        hideUpdateTimer = setTimeout(() => (updateStatus.hidden = true), 4000);
+        break;
+      case 'downloading':
+        updateStatus.textContent = `Downloading update v${status.version}… ${status.percent}%`;
+        break;
+      case 'installing':
+        updateStatus.textContent = `Installing v${status.version}… the game will restart.`;
+        break;
+      case 'unavailable':
+        // Host offline is normal; say so quietly and let them play.
+        updateStatus.textContent = 'Update check skipped (host server not running).';
+        hideUpdateTimer = setTimeout(() => (updateStatus.hidden = true), 6000);
+        break;
+    }
+    refreshLobbyButtons();
+  });
 
   if (config.smoke) {
     const report = (payload: unknown): void => {

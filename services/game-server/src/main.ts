@@ -19,6 +19,7 @@ async function main(): Promise<void> {
     snapshotEveryTicks: config.snapshotEveryTicks,
     reconnectGraceMs: config.reconnectGraceMs,
     metrics: config.metricsFile ?? 'off',
+    updates: config.updatesDir ?? 'off',
   });
   metrics.write({ type: 'event', event: 'server started', host, port, protocol: PROTOCOL_VERSION });
 

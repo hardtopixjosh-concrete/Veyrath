@@ -9,11 +9,12 @@ stand; 4–6 are reshaped as below. Each milestone still ends with passed / fail
   clicks **Host** runs it on their PC; friends join. No monthly server costs. If the host quits,
   the session ends (acceptable for friends-only co-op). The standalone server stays available for
   anyone who wants a dedicated host later.
-- **No Steam app ID for now.** The one-time Steam fee is deferred. Until then, builds are shared
-  as zips (a shared Drive folder) and friends reach the host over Tailscale.
+- **No Steam app ID for now.** The one-time Steam fee is deferred. Until then, friends install once
+  and reach the host over Tailscale.
 - **Browser build dropped.** The old Milestone 5 (ChatGPT Sites / browser client) is out.
-- **No custom auto-updater yet.** Steam will handle updates when the game gets there; building an
-  updater first would be thrown away. Revisit only if zip sharing becomes painful.
+- **Host-served auto-updates (built 2026-10-22).** Sending zips by hand was too painful, so the
+  game updates itself from the host's game server (`npm run release`, served by `npm run host`).
+  It carries over to host-a-game unchanged; Steam may replace it at Milestone 5.
 
 ## Milestones
 

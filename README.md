@@ -42,7 +42,7 @@ docs/                  ARCHITECTURE.md, TESTING.md, DECISIONS.md
 | Same acceptance run through simulated lag    | `npm run smoke:lag`                                                  |
 | Long-run bot soak (30 min, 5 bots)           | `npm run soak -- --minutes=30 --latency=100 --jitter=30 --loss=0.01` |
 | **Friend test:** host on Tailscale + metrics | `npm run host -- --client`                                           |
-| **Friend test:** zip for your friend         | `npm run package:friend -- --server=ws://100.x.y.z:7777`             |
+| **Release** (installer + auto-update feed)   | `npm run release -- --server=ws://100.x.y.z:7777` (first time)       |
 | Summarize a metrics file                     | `npm run metrics:report -- logs/metrics-….jsonl`                     |
 
 Server settings come from environment variables; see [.env.example](.env.example).

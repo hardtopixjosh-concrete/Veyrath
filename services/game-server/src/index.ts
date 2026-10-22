@@ -7,3 +7,4 @@ export * from './rateLimiter';
 export * from './room';
 export * from './server';
 export * from './ticker';
+export * from './updates';

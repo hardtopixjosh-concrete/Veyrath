@@ -1,4 +1,12 @@
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
@@ -12,12 +20,16 @@ import {
   type IpcMainInvokeEvent,
 } from 'electron';
 import { parseConfigFile, parseLaunchOptions, type LaunchOptions } from './options';
+import { createUpdater, type UpdateStatus } from './updater';
 
-// Friend builds ship a veyrath.config.json beside Veyrath.exe naming the host's server.
-const configPath = join(
-  app.isPackaged ? dirname(process.execPath) : app.getAppPath(),
-  'veyrath.config.json',
-);
+// The host's server address comes from veyrath.config.json: one beside Veyrath.exe wins (zip
+// builds), otherwise the one baked into the app by the release build (installer builds, which
+// survives updates).
+const configCandidates = [
+  join(app.isPackaged ? dirname(process.execPath) : app.getAppPath(), 'veyrath.config.json'),
+  join(__dirname, 'veyrath.config.json'),
+];
+const configPath = configCandidates.find((p) => existsSync(p)) ?? configCandidates[0]!;
 
 let options: LaunchOptions;
 try {
@@ -46,9 +58,39 @@ const rendererIndex = join(__dirname, 'renderer', 'index.html');
 const rendererUrl = pathToFileURL(rendererIndex).href;
 const smoke = options.smoke;
 
+// Main-process log in the profile folder: an installed game has no console, so this is the only
+// record of what happened on a friend's PC. Started fresh each launch once it passes 1 MB.
+const mainLogFile = join(app.getPath('userData'), 'main.log');
+try {
+  if (existsSync(mainLogFile) && statSync(mainLogFile).size > 1024 * 1024) rmSync(mainLogFile);
+} catch {
+  // best effort
+}
+
 function log(line: string): void {
   console.log(`[veyrath:${options.instance}] ${line}`);
+  try {
+    mkdirSync(app.getPath('userData'), { recursive: true });
+    appendFileSync(
+      mainLogFile,
+      `${new Date().toISOString()} pid=${process.pid} ${line}
+`,
+    );
+  } catch {
+    // best effort
+  }
 }
+
+process.on('uncaughtException', (err) => {
+  log(`uncaught exception: ${err.stack ?? String(err)}`);
+});
+process.on('unhandledRejection', (reason) => {
+  log(`unhandled rejection: ${String(reason)}`);
+});
+log(
+  `launched v${app.getVersion()} packaged=${app.isPackaged} args: ${process.argv.slice(1).join(' ')}`,
+);
+app.on('will-quit', () => log('quitting'));
 
 function smokeWrite(entry: Record<string, unknown>): void {
   const line = JSON.stringify({ ...entry, instance: options.instance, at: Date.now() });
@@ -66,6 +108,18 @@ function isTrustedSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
     return false;
   }
 }
+
+let mainWindow: BrowserWindow | null = null;
+let lastUpdateStatus: UpdateStatus | null = null;
+
+function sendUpdateStatus(status: UpdateStatus): void {
+  lastUpdateStatus = status;
+  log(`update: ${JSON.stringify(status)}`);
+  mainWindow?.webContents.send('veyrath:update-status', status);
+}
+
+// Only installed (packaged) builds update themselves; dev runs and scripted smoke runs never do.
+let updater: ReturnType<typeof createUpdater> | null = null;
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -87,7 +141,13 @@ function createWindow(): BrowserWindow {
       devTools: !app.isPackaged || options.devtools,
     },
   });
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    log('window ready');
+    win.show();
+  });
+  win.webContents.on('did-fail-load', (_e, code, description) => {
+    log(`page failed to load: ${code} ${description}`);
+  });
 
   // Only our bundled page may ever load in this window.
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -96,7 +156,7 @@ function createWindow(): BrowserWindow {
   });
   win.webContents.on('will-attach-webview', (event) => event.preventDefault());
   win.webContents.on('render-process-gone', (_e, details) => {
-    log(`renderer gone: ${details.reason}`);
+    log(`renderer gone: ${details.reason} (exit ${details.exitCode})`);
     if (smoke) {
       smokeWrite({ type: 'crash', reason: details.reason });
       app.exit(4);
@@ -128,12 +188,28 @@ function createWindow(): BrowserWindow {
     }, smoke.screenshotAtMs);
   }
 
+  win.webContents.on('did-finish-load', () => {
+    if (lastUpdateStatus) win.webContents.send('veyrath:update-status', lastUpdateStatus);
+  });
+
   void win.loadFile(rendererIndex);
+  mainWindow = win;
+  win.on('closed', () => {
+    if (mainWindow === win) mainWindow = null;
+  });
   return win;
 }
 
 void app.whenReady().then(() => {
   if (app.isPackaged) Menu.setApplicationMenu(null);
+  if (app.isPackaged && !smoke && !options.noUpdate) {
+    updater = createUpdater({
+      serverUrl: options.serverUrl,
+      currentVersion: app.getVersion(),
+      logFile: join(app.getPath('userData'), 'updater.log'),
+      send: sendUpdateStatus,
+    });
+  }
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) =>
     callback(false),
   );
@@ -144,6 +220,7 @@ void app.whenReady().then(() => {
       serverUrl: options.serverUrl,
       instance: options.instance,
       appVersion: app.getVersion(),
+      updatesEnabled: updater !== null,
       renderDelayMs: options.renderDelayMs,
       smoke: smoke && {
         role: smoke.role,
@@ -153,6 +230,13 @@ void app.whenReady().then(() => {
         leaveAtMs: smoke.leaveAtMs,
       },
     };
+  });
+
+  // The renderer may ask for a re-check (e.g. after the server says its version is newer). It
+  // can't choose where updates come from: the feed is fixed in main from the config file.
+  ipcMain.on('veyrath:check-for-updates', (event) => {
+    if (!isTrustedSender(event)) return;
+    updater?.check();
   });
 
   ipcMain.on('veyrath:smoke-report', (event, payload: unknown) => {
@@ -172,8 +256,11 @@ void app.whenReady().then(() => {
     }, smoke.durationMs + 30_000);
   }
 
-  log(`starting (server ${options.serverUrl}${smoke ? `, smoke ${smoke.role}` : ''})`);
+  log(
+    `starting v${app.getVersion()} (server ${options.serverUrl}${smoke ? `, smoke ${smoke.role}` : ''})`,
+  );
   createWindow();
+  updater?.check();
 });
 
 app.on('window-all-closed', () => app.quit());

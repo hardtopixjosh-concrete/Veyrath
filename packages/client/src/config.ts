@@ -15,15 +15,26 @@ export interface ClientConfig {
   serverUrl: string;
   instance: number;
   appVersion: string;
+  /** True in installed builds that update themselves from the host's server. */
+  updatesEnabled?: boolean;
   /** Artificial per-frame busy-wait (ms) to emulate a slow renderer. 0 = off. */
   renderDelayMs: number;
   smoke: SmokeConfig | null;
 }
 
+export type UpdateStatus =
+  | { state: 'checking' }
+  | { state: 'up-to-date'; version: string }
+  | { state: 'downloading'; version: string; percent: number }
+  | { state: 'installing'; version: string }
+  | { state: 'unavailable'; reason: string };
+
 /** The narrow API the Electron preload exposes. Absent when running in a plain browser. */
 export interface VeyrathBridge {
   getConfig(): Promise<ClientConfig>;
   smokeReport(report: unknown): void;
+  checkForUpdates?(): void;
+  onUpdateStatus?(callback: (status: UpdateStatus) => void): void;
 }
 
 declare global {

@@ -4,4 +4,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('veyrath', {
   getConfig: (): Promise<unknown> => ipcRenderer.invoke('veyrath:get-config'),
   smokeReport: (report: unknown): void => ipcRenderer.send('veyrath:smoke-report', report),
+  checkForUpdates: (): void => ipcRenderer.send('veyrath:check-for-updates'),
+  onUpdateStatus: (callback: (status: unknown) => void): void => {
+    ipcRenderer.on('veyrath:update-status', (_event, status: unknown) => callback(status));
+  },
 });

@@ -22,6 +22,7 @@ import { silentLogger, type LogFields, type Logger } from './logger';
 import { nullMetrics, type MetricsSink } from './metrics';
 import { Room, generateRoomCode, type Member } from './room';
 import { FixedTicker } from './ticker';
+import { serveUpdateFile } from './updates';
 
 export interface ServerTotals {
   connectionsAccepted: number;
@@ -252,6 +253,12 @@ export class GameServer {
   // ---- HTTP ------------------------------------------------------------------------------------
 
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
+    const servedUpdate = serveUpdateFile(req, res, this.config.updatesDir, ({ file, bytes }) => {
+      // The yml is polled on every client start; only installer downloads are worth an event.
+      if (file.endsWith('.exe')) this.event('update download', { file, bytes });
+      else this.log.debug('update check', { file });
+    });
+    if (servedUpdate) return;
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       const mem = process.memoryUsage();

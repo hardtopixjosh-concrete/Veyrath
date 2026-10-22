@@ -1,5 +1,6 @@
 // Builds everything the desktop app ships: the renderer (Vite) and the main/preload bundles (esbuild).
 import { build as esbuild } from 'esbuild';
+import { rmSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as viteBuild } from 'vite';
@@ -7,6 +8,9 @@ import { build as viteBuild } from 'vite';
 const desktop = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const clientRoot = resolve(desktop, '../../packages/client');
 const out = resolve(desktop, 'build');
+// A baked server address only exists inside a release build (scripts/release.mjs writes it after
+// this step); never let one leak into a dev build.
+rmSync(resolve(out, 'veyrath.config.json'), { force: true });
 
 await viteBuild({
   root: clientRoot,

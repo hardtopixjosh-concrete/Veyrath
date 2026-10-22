@@ -4,7 +4,7 @@ Goal: two people on **different internet connections** play together for 30+ min
 real numbers (ping, jitter, gaps, reconnects, server load). A local test can't stand in for this.
 
 **Roles:** the **host** runs the server and plays on the same PC (needs this repo). The **friend**
-only needs the zip.
+installs the game once; after that it updates itself from the host's server.
 
 ## One-time setup
 
@@ -25,13 +25,14 @@ only needs the zip.
 
    It looks like `100.x.y.z`.
 
-4. Build the friend zip with that address baked in:
+4. Build a release with that address baked in (the address is remembered for next time):
 
    ```bash
-   npm run package:friend -- --server=ws://100.x.y.z:7777
+   npm run release -- --server=ws://100.x.y.z:7777
    ```
 
-   Output: `apps/desktop/release/Veyrath-friend.zip`. Send it to your friend any way you like.
+   Output: `updates\Veyrath-Setup-<version>.exe` (about 110 MB). Send it to your friend once,
+   any way you like (Drive, Discord, etc.).
 
 5. **Windows Firewall.** The first time the server starts, Windows may ask whether Node.js may
    accept connections. Tick **Private networks**, then **Allow**. If your friend still can't connect,
@@ -45,8 +46,20 @@ only needs the zip.
 ### Friend
 
 6. Accept the share invite in Tailscale.
-7. Unzip `Veyrath-friend.zip` and run `Veyrath\Veyrath.exe`. SmartScreen may warn about an
-   unrecognized app (the test build is unsigned): **More info → Run anyway**.
+7. Run `Veyrath-Setup-<version>.exe`. It installs for your Windows user only (no admin needed)
+   and adds a Start-menu entry. SmartScreen may warn about an unrecognized app (the test build is
+   unsigned): **More info → Run anyway**. If an older zip copy of the game exists, delete it.
+
+## Updates (after the first install)
+
+Host: after any change, run `npm run release` (no arguments needed after the first time). The next
+time you `npm run host`, your friend's game sees the new version when it starts, shows
+"Downloading update… %", installs it, and restarts by itself (the window disappears for about
+10 seconds). If your server isn't running, the game says the update check was skipped and starts
+normally. If the friend's game is too old to join, it updates as soon as they try.
+
+Logs on the friend's PC, if something goes wrong: the folder `%APPDATA%/veyrath/instance-1`
+contains `main.log` and `updater.log`.
 
 ## Each session
 
@@ -79,7 +92,7 @@ Fill in **Passed / Failed / Not run** and notes. Don't mark anything passed that
 
 | #   | Check                                                                                                | Result  | Notes |
 | --- | ---------------------------------------------------------------------------------------------------- | ------- | ----- |
-| F1  | Friend's zip starts, lobby shows the host's server, Join works                                       | Not run |       |
+| F1  | Friend's installer works, lobby shows the host's server, Join works                                  | Not run |       |
 | F2  | Both see each other move; both hit the enemy; HP bar matches on both screens                         | Not run |       |
 | F3  | Feel: own movement responsive; other player and enemy move smoothly (write down F3 ping/jitter)      | Not run |       |
 | F4  | 30 minutes in one room without an unexpected disconnect or long freeze                               | Not run |       |

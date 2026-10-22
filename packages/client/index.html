@@ -14,7 +14,7 @@
 
     <div id="lobby" class="panel">
       <h1>Veyrath</h1>
-      <p class="sub">Milestone 1 · network test build</p>
+      <p class="sub" id="version">Test build</p>
       <label>Name <input id="name" maxlength="16" autocomplete="off" spellcheck="false" /></label>
       <label
         >Server
@@ -33,6 +33,7 @@
         />
         <button id="join" type="button">Join room</button>
       </div>
+      <p id="update-status" class="update" hidden></p>
       <p id="lobby-status" class="status"></p>
       <p class="hint">WASD / arrows to move · Space or J to attack · F3 debug · Esc to leave</p>
     </div>
