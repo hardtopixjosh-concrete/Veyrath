@@ -29,6 +29,8 @@ export interface ServerConfig {
   heartbeatIntervalMs: number;
   statsIntervalMs: number;
   logLevel: LogLevel;
+  /** JSON-lines metrics output (events, server stats, client-reported stats); off when undefined. */
+  metricsFile: string | undefined;
   /** Fixed base seed for reproducible rooms; random when undefined. */
   seed: number | undefined;
 }
@@ -52,6 +54,7 @@ export const DEFAULT_SERVER_CONFIG: ServerConfig = Object.freeze({
   heartbeatIntervalMs: 5_000,
   statsIntervalMs: 10_000,
   logLevel: 'info',
+  metricsFile: undefined,
   seed: undefined,
 });
 
@@ -75,6 +78,7 @@ export function configFromEnv(env: Record<string, string | undefined>): ServerCo
     intFromEnv(env.VEYRATH_SNAPSHOT_EVERY_TICKS, 'VEYRATH_SNAPSHOT_EVERY_TICKS', 1, 30) ??
     config.snapshotEveryTicks;
   config.seed = intFromEnv(env.VEYRATH_SEED, 'VEYRATH_SEED', 0, 0xffffffff) ?? config.seed;
+  if (env.VEYRATH_METRICS_FILE) config.metricsFile = env.VEYRATH_METRICS_FILE;
   if (env.VEYRATH_LOG_LEVEL) {
     if (!isLogLevel(env.VEYRATH_LOG_LEVEL)) {
       throw new Error(`VEYRATH_LOG_LEVEL must be debug|info|warn|error|silent`);

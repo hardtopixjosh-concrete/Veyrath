@@ -55,9 +55,32 @@ function serverUrlArg(value: string | undefined): string | null {
   throw new Error(`server URL must be ws:// or wss://, got "${value}"`);
 }
 
+/**
+ * Reads the optional `veyrath.config.json` shipped next to the exe (friend builds). Only
+ * `serverUrl` is recognised. Returns undefined when the file is absent.
+ */
+export function parseConfigFile(text: string | undefined): { serverUrl?: string } | undefined {
+  if (text === undefined) return undefined;
+  let data: unknown;
+  try {
+    data = JSON.parse(text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
+  } catch {
+    throw new Error('veyrath.config.json is not valid JSON');
+  }
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    throw new Error('veyrath.config.json must be a JSON object');
+  }
+  const serverUrl = (data as { serverUrl?: unknown }).serverUrl;
+  if (serverUrl === undefined) return {};
+  if (typeof serverUrl !== 'string')
+    throw new Error('veyrath.config.json serverUrl must be a string');
+  return { serverUrl: serverUrlArg(serverUrl) ?? undefined };
+}
+
 export function parseLaunchOptions(
   argv: readonly string[],
   env: Record<string, string | undefined>,
+  file: { serverUrl?: string } = {},
 ): LaunchOptions {
   const args = readArgs(argv);
   const role = args.get('smoke');
@@ -71,6 +94,7 @@ export function parseLaunchOptions(
     serverUrl:
       serverUrlArg(args.get('server')) ??
       serverUrlArg(env.VEYRATH_SERVER_URL) ??
+      file.serverUrl ??
       'ws://127.0.0.1:7777',
     instance: intArg(args, 'instance', 1, 9) ?? 1,
     renderDelayMs: intArg(args, 'render-delay', 0, 200) ?? 0,

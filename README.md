@@ -28,17 +28,22 @@ docs/                  ARCHITECTURE.md, TESTING.md, DECISIONS.md
 
 ## Commands
 
-| What                                        | Command                                    |
-| ------------------------------------------- | ------------------------------------------ |
-| Start the game server (ws://127.0.0.1:7777) | `npm run server`                           |
-| Start one desktop client                    | `npm run client`                           |
-| Server + **two local clients** in one go    | `npm run play:local`                       |
-| All tests                                   | `npm test`                                 |
-| Typecheck + lint + format check + tests     | `npm run check`                            |
-| Automated two-client acceptance run         | `npm run smoke:two`                        |
-| Package a Windows test build                | `npm run package:win`                      |
-| Same acceptance run against packaged exe    | `npm run smoke:packaged` (after packaging) |
-| Client in a browser tab (dev only)          | `npm run dev:web` (server must be running) |
+| What                                         | Command                                                              |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| Start the game server (ws://127.0.0.1:7777)  | `npm run server`                                                     |
+| Start one desktop client                     | `npm run client`                                                     |
+| Server + **two local clients** in one go     | `npm run play:local`                                                 |
+| All tests                                    | `npm test`                                                           |
+| Typecheck + lint + format check + tests      | `npm run check`                                                      |
+| Automated two-client acceptance run          | `npm run smoke:two`                                                  |
+| Package a Windows test build                 | `npm run package:win`                                                |
+| Same acceptance run against packaged exe     | `npm run smoke:packaged` (after packaging)                           |
+| Client in a browser tab (dev only)           | `npm run dev:web` (server must be running)                           |
+| Same acceptance run through simulated lag    | `npm run smoke:lag`                                                  |
+| Long-run bot soak (30 min, 5 bots)           | `npm run soak -- --minutes=30 --latency=100 --jitter=30 --loss=0.01` |
+| **Friend test:** host on Tailscale + metrics | `npm run host -- --client`                                           |
+| **Friend test:** zip for your friend         | `npm run package:friend -- --server=ws://100.x.y.z:7777`             |
+| Summarize a metrics file                     | `npm run metrics:report -- logs/metrics-….jsonl`                     |
 
 Server settings come from environment variables; see [.env.example](.env.example).
 
@@ -55,6 +60,9 @@ The packaged build lands in `apps/desktop/release/` (`win-unpacked/Veyrath.exe` 
 server bundle is copied to `apps/desktop/release/server/veyrath-server.cjs` (`node veyrath-server.cjs`).
 
 ## Status
+
+**Milestone 2 (friend test over Tailscale) is in progress.** Tooling is built and verified locally;
+the real two-location test has not been run yet. Follow [docs/FRIEND_TEST.md](docs/FRIEND_TEST.md).
 
 Milestone 1 is implemented and its acceptance gates pass **locally** (two windows, one PC). See
 [docs/TESTING.md](docs/TESTING.md) for what ran, the results, and known limitations. Nothing here

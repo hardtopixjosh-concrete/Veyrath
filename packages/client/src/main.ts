@@ -6,6 +6,7 @@ import { CounterRate, Ema } from './metrics';
 import { GameSession, type InputSource, type SessionPhase } from './net/session';
 import { createWebSocketTransport } from './net/transport';
 import { DebugOverlay } from './overlay';
+import { connectionQuality } from './quality';
 import { Renderer } from './render';
 import { Autopilot, SmokeRecorder, runSmokeScript } from './smoke';
 import './styles.css';
@@ -49,6 +50,8 @@ async function main(): Promise<void> {
   const hudStatus = el<HTMLSpanElement>('hud-status');
   const hudPlayers = el<HTMLUListElement>('hud-players');
   const banner = el<HTMLDivElement>('banner');
+  const hudQuality = el<HTMLDivElement>('hud-quality');
+  const hudQualityLabel = el<HTMLSpanElement>('hud-quality-label');
 
   nameInput.value = loadPref(`name.${config.instance}`) ?? `Player${config.instance}`;
   serverInput.value = config.serverUrl;
@@ -138,6 +141,9 @@ async function main(): Promise<void> {
     runSmokeScript(config.smoke, session, recorder, config.serverUrl);
   }
 
+  // Network metrics for the server's log (a timer, so it keeps reporting while minimized).
+  setInterval(() => session.sendStats(frameMs.value ? 1000 / frameMs.value : 0), 5000);
+
   // ---- frame loop: rendering only. Input and networking run on their own timers. ----
   const frameMs = new Ema(0.05);
   const inRate = new CounterRate();
@@ -183,6 +189,8 @@ async function main(): Promise<void> {
       fps: frameMs.value ? 1000 / frameMs.value : 0,
       frameMs: frameMs.value ?? 0,
       rttMs: session.rtt.value,
+      rttJitterMs: session.rttJitter.value,
+      snapshotJitterMs: session.snapshotJitter.value,
       snapshotsPerSec: session.snapshotRate.perSecond(now),
       ack: snap?.ack ?? null,
       pendingInputs: session.predictor.pendingCount,
@@ -199,6 +207,15 @@ async function main(): Promise<void> {
 
     if (playing && now - lastHud > 250) {
       lastHud = now;
+      const quality = connectionQuality({
+        phase: session.phase,
+        rttMs: session.rtt.value,
+        rttJitterMs: session.rttJitter.value,
+        snapshotsPerSec: session.snapshotRate.perSecond(now),
+        msSinceSnapshot: session.msSinceSnapshot,
+      });
+      hudQuality.dataset.level = quality.level;
+      hudQualityLabel.textContent = quality.label;
       hudPlayers.replaceChildren(
         ...players.map((p) => {
           const li = document.createElement('li');

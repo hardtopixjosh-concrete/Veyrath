@@ -1,5 +1,5 @@
 /** Bump on any incompatible wire change. Client and server must match exactly. */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 export const LIMITS = Object.freeze({
   /** Hard cap on any client→server message (enforced by the socket and again by the parser). */

@@ -44,8 +44,33 @@ export interface LeaveMessage {
   t: 'leave';
 }
 
+/**
+ * Periodic (every few seconds) client-side network/render measurements, logged by the server so a
+ * remote test produces one metrics file with both ends' view. Purely diagnostic: never affects play.
+ */
+export interface ClientStatsMessage {
+  t: 'stats';
+  fps: number;
+  rttMs: number;
+  /** Mean absolute deviation of RTT samples. */
+  rttJitterMs: number;
+  snapshotsPerSec: number;
+  /** Mean absolute deviation of snapshot inter-arrival time from the nominal interval. */
+  snapshotJitterMs: number;
+  /** Longest gap between two snapshots since the previous stats message. */
+  maxSnapshotGapMs: number;
+  corrections: number;
+  reconnects: number;
+}
+
 export type ClientMessage =
-  CreateRoomMessage | JoinRoomMessage | RejoinMessage | InputMessage | PingMessage | LeaveMessage;
+  | CreateRoomMessage
+  | JoinRoomMessage
+  | RejoinMessage
+  | InputMessage
+  | PingMessage
+  | LeaveMessage
+  | ClientStatsMessage;
 
 // ---- server → client -------------------------------------------------------------------------
 

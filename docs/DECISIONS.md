@@ -27,3 +27,19 @@ Short log of decisions made for this codebase. Newest last.
 11. **Client input uses a catch-up accumulator.** Found during the smoke run: a renderer stalled
     40 ms/frame starved the input timer to ~14 inputs/s (player moved at half speed). Inputs now
     catch up (≤ 4 per callback) so the send rate stays 30/s at low FPS.
+12. **2026-10-21 — Protocol version 2.** Adds a diagnostic `stats` message (client FPS, RTT, jitter,
+    snapshot gaps, corrections, reconnects) every 5 s. v1 clients are refused with
+    `version_mismatch`.
+13. **Metrics as JSON lines from the server** (`VEYRATH_METRICS_FILE`): lifecycle events, server
+    stats every 10 s, client-reported stats plus server-measured RTT. One file per session holds both
+    ends' view; `scripts/metrics-report.mjs` summarizes it.
+14. **Friend builds read `veyrath.config.json` beside the exe** for the server URL (precedence:
+    `--server` > `VEYRATH_SERVER_URL` > config file > localhost). A malformed file is an error dialog,
+    not a silent fallback.
+15. **Host binds to the Tailscale address only** by default (not `0.0.0.0`), so the server is not
+    exposed on the home LAN or anywhere else. `--lan` / `--host=` exist for deliberate exceptions.
+16. **Impairment testing uses a local TCP proxy** (delay, jitter, stall-on-loss, strictly ordered)
+    rather than OS-level network shaping, so it needs no admin rights and runs in the same scripts.
+17. **HUD connection indicator thresholds:** Good ≤ 100 ms ping, ≤ 20 ms jitter, ≥ 27 updates/s;
+    Poor > 200 ms, > 50 ms jitter or < 20 updates/s; Fair in between; "No updates" after 1 s
+    without a snapshot. Starting points to revisit with friend-test numbers.

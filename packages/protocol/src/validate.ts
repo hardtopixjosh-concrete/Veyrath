@@ -23,6 +23,10 @@ function isAxis(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value >= -1 && value <= 1;
 }
 
+function isMeasure(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1e6;
+}
+
 function isName(value: unknown): value is string {
   return typeof value === 'string' && value.trim() === value && PLAYER_NAME_PATTERN.test(value);
 }
@@ -113,6 +117,36 @@ export function parseClientMessage(
     }
     case 'leave':
       return { ok: true, msg: { t: 'leave' } };
+    case 'stats': {
+      const { fps, rttMs, rttJitterMs, snapshotsPerSec, snapshotJitterMs, maxSnapshotGapMs } = data;
+      const { corrections, reconnects } = data;
+      const measures = [
+        fps,
+        rttMs,
+        rttJitterMs,
+        snapshotsPerSec,
+        snapshotJitterMs,
+        maxSnapshotGapMs,
+      ];
+      if (!measures.every(isMeasure)) return fail('stats values must be numbers in [0, 1e6]');
+      if (!isInt(corrections, 0, LIMITS.maxSeq) || !isInt(reconnects, 0, LIMITS.maxSeq)) {
+        return fail('stats counters must be non-negative integers');
+      }
+      return {
+        ok: true,
+        msg: {
+          t: 'stats',
+          fps: fps as number,
+          rttMs: rttMs as number,
+          rttJitterMs: rttJitterMs as number,
+          snapshotsPerSec: snapshotsPerSec as number,
+          snapshotJitterMs: snapshotJitterMs as number,
+          maxSnapshotGapMs: maxSnapshotGapMs as number,
+          corrections,
+          reconnects,
+        },
+      };
+    }
     default:
       return fail('unknown message type');
   }

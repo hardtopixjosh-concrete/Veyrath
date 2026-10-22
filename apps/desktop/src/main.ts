@@ -1,22 +1,37 @@
-import { appendFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   BrowserWindow,
   Menu,
   app,
+  dialog,
   ipcMain,
   session,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
 } from 'electron';
-import { parseLaunchOptions, type LaunchOptions } from './options';
+import { parseConfigFile, parseLaunchOptions, type LaunchOptions } from './options';
+
+// Friend builds ship a veyrath.config.json beside Veyrath.exe naming the host's server.
+const configPath = join(
+  app.isPackaged ? dirname(process.execPath) : app.getAppPath(),
+  'veyrath.config.json',
+);
 
 let options: LaunchOptions;
 try {
-  options = parseLaunchOptions(process.argv, process.env);
+  const configText = existsSync(configPath) ? readFileSync(configPath, 'utf8') : undefined;
+  options = parseLaunchOptions(process.argv, process.env, parseConfigFile(configText));
 } catch (err) {
   console.error(`[veyrath] ${String(err)}`);
+  // Safe before 'ready'; a double-clicked exe has no console to show the error in.
+  dialog.showErrorBox(
+    'Veyrath could not start',
+    `${String(err)}
+
+Config file: ${configPath}`,
+  );
   process.exit(2);
 }
 

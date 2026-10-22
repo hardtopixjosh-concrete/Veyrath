@@ -89,6 +89,16 @@ Rejoin credentials live in client memory only: restarting the app joins as a new
   server clock, lerped between bracketing snapshots (buffer of 40).
 - **Transport** interface (`net/transport.ts`) isolates WebSocket specifics.
 
+## Metrics (Milestone 2)
+
+- Clients send `stats` every 5 s (timer-driven, so it continues while minimized). The server writes
+  it, together with its own measurements for that connection (heartbeat RTT, bytes, skipped
+  snapshots, queued inputs), to the metrics file. The server also writes its own stats every 10 s
+  (tick avg/max, behind-resets, memory, totals) and every lifecycle event (join, rejoin, drop, slot
+  release, leave, room open/close).
+- `/health` also reports `rssMB` and `heapUsedMB`.
+- `stats` never influences gameplay and is validated like any other message (finite, 0..1e6).
+
 ## Electron security
 
 `contextIsolation: true`, `nodeIntegration: false`, `sandbox: true`, `webSecurity: true`; preload

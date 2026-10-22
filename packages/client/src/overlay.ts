@@ -10,6 +10,8 @@ export interface OverlayData {
   fps: number;
   frameMs: number;
   rttMs: number | null;
+  rttJitterMs: number | null;
+  snapshotJitterMs: number | null;
   snapshotsPerSec: number;
   ack: number | null;
   pendingInputs: number;
@@ -53,8 +55,8 @@ export class DebugOverlay {
       `players    ${d.players}/5 (connected ${d.connectedPlayers})`,
       `server     tick ${d.serverTick ?? '–'}   tick time ${fmt(d.serverTickMs, 3)} ms avg`,
       `client     ${fmt(d.fps)} fps   frame ${fmt(d.frameMs)} ms${d.renderDelayMs ? `   (render delay ${d.renderDelayMs} ms)` : ''}`,
-      `rtt        ${fmt(d.rttMs)} ms`,
-      `snapshots  ${fmt(d.snapshotsPerSec)}/s   ack ${d.ack ?? '–'}   pending inputs ${d.pendingInputs}`,
+      `rtt        ${fmt(d.rttMs)} ms   jitter ${fmt(d.rttJitterMs)} ms`,
+      `snapshots  ${fmt(d.snapshotsPerSec)}/s   jitter ${fmt(d.snapshotJitterMs)} ms   ack ${d.ack ?? '–'}   pending inputs ${d.pendingInputs}`,
       `recv       ${kb(d.bytesInPerSec)}/s   total ${kb(d.bytesInTotal)}`,
       `sent       ${kb(d.bytesOutPerSec)}/s   total ${kb(d.bytesOutTotal)}`,
       `ws queue   ${kb(d.bufferedBytes)} buffered`,

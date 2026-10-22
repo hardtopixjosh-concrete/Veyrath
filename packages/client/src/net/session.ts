@@ -53,6 +53,13 @@ export class GameSession {
   readonly snapshots = new SnapshotBuffer(DEFAULT_SIM_CONFIG.tickRate);
   readonly snapshotRate = new RollingRate();
   readonly rtt = new Ema(0.2);
+  /** Mean absolute deviation of RTT samples. */
+  readonly rttJitter = new Ema(0.2);
+  /** Mean absolute deviation of snapshot inter-arrival time from the nominal interval. */
+  readonly snapshotJitter = new Ema(0.05);
+  /** Longest snapshot gap since the last stats report (or since joining). */
+  maxSnapshotGapMs = 0;
+  private lastSnapshotAt: number | null = null;
   reconnects = 0;
 
   private transport: Transport | null = null;
@@ -85,6 +92,11 @@ export class GameSession {
     return this.seq;
   }
 
+  /** Milliseconds since the last snapshot arrived, or null before the first one. */
+  get msSinceSnapshot(): number | null {
+    return this.lastSnapshotAt === null ? null : this.now() - this.lastSnapshotAt;
+  }
+
   get bytesSent(): number {
     return this.retiredBytes.sent + (this.transport?.stats.bytesSent ?? 0);
   }
@@ -111,6 +123,29 @@ export class GameSession {
       this.transport.send(encodeMessage({ t: 'leave' }));
     }
     this.shutdown('idle', 'Left the room');
+  }
+
+  /**
+   * Sends this client's view of the connection to the server's metrics log, then starts a new
+   * max-gap window. Diagnostic only.
+   */
+  sendStats(fps: number): void {
+    if (this.phase !== 'in_room' || !this.transport?.isOpen) return;
+    const round = (v: number | null): number => Math.min(1e6, Math.round((v ?? 0) * 10) / 10);
+    this.transport.send(
+      encodeMessage({
+        t: 'stats',
+        fps: round(fps),
+        rttMs: round(this.rtt.value),
+        rttJitterMs: round(this.rttJitter.value),
+        snapshotsPerSec: round(this.snapshotRate.perSecond(this.now())),
+        snapshotJitterMs: round(this.snapshotJitter.value),
+        maxSnapshotGapMs: round(this.maxSnapshotGapMs),
+        corrections: this.predictor.corrections,
+        reconnects: this.reconnects,
+      }),
+    );
+    this.maxSnapshotGapMs = 0;
   }
 
   /** Test hook: drop the socket as if the network failed, to exercise automatic rejoin. */
@@ -154,6 +189,7 @@ export class GameSession {
         this.clearReconnectTimer();
         this.predictor.reset();
         this.snapshots.clear();
+        this.lastSnapshotAt = null;
         this.setPhase('in_room', `In room ${msg.room}`);
         this.startTimers(msg.tickRate);
         this.events.onWelcome(msg, rejoined);
@@ -165,14 +201,24 @@ export class GameSession {
         this.lastSnapshot = msg;
         this.snapshots.push(msg.world, now);
         this.snapshotRate.mark(now);
+        if (this.lastSnapshotAt !== null) {
+          const gap = now - this.lastSnapshotAt;
+          const nominal = 1000 / (this.welcome?.snapshotRate ?? DEFAULT_SIM_CONFIG.tickRate);
+          this.snapshotJitter.add(Math.abs(gap - nominal));
+          if (gap > this.maxSnapshotGapMs) this.maxSnapshotGapMs = gap;
+        }
+        this.lastSnapshotAt = now;
         const me = msg.world.players.find((p) => p.id === this.playerId);
         if (me) this.predictor.reconcile(me.x, me.y, msg.ack);
         this.events.onSnapshot(msg);
         return;
       }
-      case 'pong':
-        this.rtt.add(this.now() - msg.clientTime);
+      case 'pong': {
+        const sample = this.now() - msg.clientTime;
+        if (this.rtt.value !== null) this.rttJitter.add(Math.abs(sample - this.rtt.value));
+        this.rtt.add(sample);
         return;
+      }
       case 'left':
         return;
       case 'error': {

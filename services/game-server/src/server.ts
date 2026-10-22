@@ -11,13 +11,15 @@ import {
   type ErrorMessage,
   type InputMessage,
   type JoinRoomMessage,
+  type ClientStatsMessage,
   type RejoinMessage,
 } from '@veyrath/protocol';
 import { DEFAULT_SIM_CONFIG, snapshotWorld } from '@veyrath/sim';
 import { WebSocketServer, type RawData, type WebSocket } from 'ws';
 import { DEFAULT_SERVER_CONFIG, type ServerConfig } from './config';
 import { ClientConnection } from './connection';
-import { silentLogger, type Logger } from './logger';
+import { silentLogger, type LogFields, type Logger } from './logger';
+import { nullMetrics, type MetricsSink } from './metrics';
 import { Room, generateRoomCode, type Member } from './room';
 import { FixedTicker } from './ticker';
 
@@ -91,9 +93,19 @@ export class GameServer {
   private state: 'idle' | 'running' | 'stopping' = 'idle';
   private totals: ServerTotals = GameServer.emptyTotals();
 
-  constructor(config: Partial<ServerConfig> = {}, logger: Logger = silentLogger) {
+  constructor(
+    config: Partial<ServerConfig> = {},
+    logger: Logger = silentLogger,
+    private readonly metrics: MetricsSink = nullMetrics,
+  ) {
     this.config = { ...DEFAULT_SERVER_CONFIG, ...config };
     this.log = logger;
+  }
+
+  /** A lifecycle event: logged, and recorded in the metrics file when one is configured. */
+  private event(name: string, fields: LogFields): void {
+    this.log.info(name, fields);
+    this.metrics.write({ type: 'event', event: name, ...fields });
   }
 
   private static emptyTotals(): ServerTotals {
@@ -242,7 +254,16 @@ export class GameServer {
   private handleHttp(req: IncomingMessage, res: ServerResponse): void {
     if (req.method === 'GET' && req.url === '/health') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-      res.end(JSON.stringify({ ok: true, protocol: PROTOCOL_VERSION, ...this.getStats() }));
+      const mem = process.memoryUsage();
+      res.end(
+        JSON.stringify({
+          ok: true,
+          protocol: PROTOCOL_VERSION,
+          rssMB: Math.round(mem.rss / 1048576),
+          heapUsedMB: Math.round((mem.heapUsed / 1048576) * 10) / 10,
+          ...this.getStats(),
+        }),
+      );
       return;
     }
     res.writeHead(404, { 'content-type': 'text/plain' });
@@ -266,6 +287,7 @@ export class GameServer {
     ws.on('message', (data, isBinary) => this.handleMessage(conn, data, isBinary));
     ws.on('pong', () => {
       conn.isAlive = true;
+      if (conn.pingSentAt !== null) conn.rttMs = performance.now() - conn.pingSentAt;
     });
     ws.on('close', (code) => this.handleClose(conn, code));
     ws.on('error', (err) => this.log.debug('socket error', { conn: conn.id, error: err.message }));
@@ -297,7 +319,7 @@ export class GameServer {
       const member = room?.members.get(ref.memberId);
       if (room && member && member.conn === conn) {
         room.detach(member, Date.now());
-        this.log.info('player disconnected', {
+        this.event('player disconnected', {
           room: room.code,
           player: member.id,
           code,
@@ -372,6 +394,8 @@ export class GameServer {
         return this.rejoinRoom(conn, msg);
       case 'leave':
         return this.leaveRoom(conn);
+      case 'stats':
+        return this.recordClientStats(conn, msg);
     }
   }
 
@@ -407,7 +431,7 @@ export class GameServer {
       this.config.inputQueueSize,
     );
     this.rooms.set(room.code, room);
-    this.log.info('room created', { room: room.code, rooms: this.rooms.size });
+    this.event('room created', { room: room.code, rooms: this.rooms.size });
     this.admit(conn, room, room.addMember(name));
   }
 
@@ -458,7 +482,7 @@ export class GameServer {
       snapshotRate: DEFAULT_SIM_CONFIG.tickRate / this.config.snapshotEveryTicks,
       reconnectGraceMs: this.config.reconnectGraceMs,
     });
-    this.log.info(rejoined ? 'player rejoined' : 'player joined', {
+    this.event(rejoined ? 'player rejoined' : 'player joined', {
       room: room.code,
       player: member.id,
       slot: member.slot,
@@ -473,7 +497,7 @@ export class GameServer {
     const room = this.rooms.get(ref.roomCode);
     if (room) {
       room.removeMember(ref.memberId);
-      this.log.info('player left', { room: room.code, player: ref.memberId, players: room.size });
+      this.event('player left', { room: room.code, player: ref.memberId, players: room.size });
       if (room.size === 0) this.deleteRoom(room);
     }
     conn.send({ t: 'left' });
@@ -486,6 +510,7 @@ export class GameServer {
     if (!member || member.conn !== conn) {
       conn.rejectedInputs++;
       this.totals.rejectedInputs++;
+      this.log.debug('input rejected', { conn: conn.id, reason: 'not in room', seq: msg.seq });
       return;
     }
     const result = member.queue.push(msg.seq, {
@@ -496,6 +521,12 @@ export class GameServer {
     if (result === 'duplicate' || result === 'out_of_order') {
       conn.rejectedInputs++;
       this.totals.rejectedInputs++;
+      this.log.debug('input rejected', {
+        conn: conn.id,
+        reason: result,
+        seq: msg.seq,
+        highest: member.queue.highestReceivedSeq,
+      });
     } else if (result === 'accepted_dropped_oldest') {
       this.totals.droppedInputs++;
     }
@@ -542,7 +573,7 @@ export class GameServer {
         now - member.disconnectedAt >= this.config.reconnectGraceMs
       ) {
         room.removeMember(member.id);
-        this.log.info('player slot released', { room: room.code, player: member.id });
+        this.event('player slot released', { room: room.code, player: member.id });
       }
     }
     if (room.size === 0) this.deleteRoom(room);
@@ -550,8 +581,29 @@ export class GameServer {
 
   private deleteRoom(room: Room): void {
     if (this.rooms.delete(room.code)) {
-      this.log.info('room closed', { room: room.code, rooms: this.rooms.size });
+      this.event('room closed', { room: room.code, rooms: this.rooms.size });
     }
+  }
+
+  private recordClientStats(conn: ClientConnection, msg: ClientStatsMessage): void {
+    const ref = conn.member;
+    const member = ref ? this.rooms.get(ref.roomCode)?.members.get(ref.memberId) : undefined;
+    if (!ref || !member) return;
+    const { t: _t, ...stats } = msg;
+    this.metrics.write({
+      type: 'client',
+      room: ref.roomCode,
+      player: member.id,
+      name: member.name,
+      ...stats,
+      serverRttMs: conn.rttMs === null ? null : Math.round(conn.rttMs * 10) / 10,
+      bytesIn: conn.bytesIn,
+      bytesOut: conn.bytesOut,
+      skippedSnapshots: conn.skippedSnapshots,
+      rejectedInputs: conn.rejectedInputs,
+      rateLimitDrops: conn.rateLimitDrops,
+      queuedInputs: member.queue.size,
+    });
   }
 
   private heartbeat(): void {
@@ -562,6 +614,7 @@ export class GameServer {
         continue;
       }
       conn.isAlive = false;
+      conn.pingSentAt = performance.now();
       conn.ping();
     }
   }
@@ -569,6 +622,27 @@ export class GameServer {
   private logStats(): void {
     const s = this.getStats();
     if (s.connections === 0 && s.rooms === 0) return;
+    const mem = process.memoryUsage();
+    this.metrics.write({
+      type: 'server',
+      rooms: s.rooms,
+      players: s.members,
+      connected: s.connectedMembers,
+      connections: s.connections,
+      ticks: s.ticks,
+      avgTickMs: Math.round(s.avgTickMs * 1000) / 1000,
+      maxTickMs: Math.round(s.maxTickMs * 1000) / 1000,
+      behindResets: s.behindResets,
+      bytesIn: s.totals.bytesIn,
+      bytesOut: s.totals.bytesOut,
+      skippedSnapshots: s.totals.skippedSnapshots,
+      droppedInputs: s.totals.droppedInputs,
+      rejectedInputs: s.totals.rejectedInputs,
+      invalidMessages: s.totals.invalidMessages,
+      rateLimitDrops: s.totals.rateLimitDrops,
+      rssMB: Math.round(mem.rss / 1048576),
+      heapUsedMB: Math.round((mem.heapUsed / 1048576) * 10) / 10,
+    });
     this.log.info('stats', {
       rooms: s.rooms,
       players: s.members,

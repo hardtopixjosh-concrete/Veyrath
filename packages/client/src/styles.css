@@ -173,3 +173,39 @@ button:disabled {
   pointer-events: none;
   white-space: pre;
 }
+
+.quality {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8b949e;
+}
+
+.quality .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #8b949e;
+}
+
+.quality[data-level='good'] .dot {
+  background: #3fb950;
+}
+.quality[data-level='fair'] .dot {
+  background: #d29922;
+}
+.quality[data-level='poor'] .dot {
+  background: #f85149;
+}
+.quality[data-level='lost'] .dot {
+  background: #f85149;
+  animation: blink 1s steps(2) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0.2;
+  }
+}

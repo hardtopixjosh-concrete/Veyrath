@@ -24,6 +24,9 @@ export interface RoomRef {
 export class ClientConnection {
   member: RoomRef | null = null;
   isAlive = true;
+  /** Server-measured round trip from the WebSocket heartbeat ping. */
+  pingSentAt: number | null = null;
+  rttMs: number | null = null;
   closed = false;
   lobbyTimer: ReturnType<typeof setTimeout> | null = null;
 

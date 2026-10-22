@@ -5,9 +5,11 @@
 //                    suffers a simulated network drop and auto-rejoins, then leaves the room
 //
 // Each client reports what it saw; this script compares the reports and polls the server's /health.
-// Usage: node scripts/smoke-two-clients.mjs [--packaged]
+// Usage: node scripts/smoke-two-clients.mjs [--packaged] [--latency=MS --jitter=MS --loss=RATE]
+//   --latency/--jitter/--loss route both clients through scripts/netem-proxy.mjs (simulated internet).
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { startNetemProxy } from './netem-proxy.mjs';
 import {
   clientCommand,
   packagedServer,
@@ -19,8 +21,18 @@ import {
 } from './lib.mjs';
 
 const packaged = process.argv.includes('--packaged');
+const numArg = (name) => {
+  const raw = process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=')[1];
+  return raw === undefined ? null : Number(raw);
+};
+const impairment = {
+  latencyMs: numArg('latency') ?? 0,
+  jitterMs: numArg('jitter') ?? 0,
+  loss: numArg('loss') ?? 0,
+};
+const impaired = impairment.latencyMs > 0 || impairment.jitterMs > 0 || impairment.loss > 0;
 const port = 17000 + Math.floor(Math.random() * 1000);
-const url = `ws://127.0.0.1:${port}`;
+let url = `ws://127.0.0.1:${port}`;
 const outDir = resolve(root, '.smoke');
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
@@ -78,9 +90,21 @@ log(`smoke: ${packaged ? 'PACKAGED exe' : 'dev Electron build'}, server ${url}`)
 const server = await startServer({
   port,
   bundle: packaged ? packagedServer : serverBundle,
-  env: { VEYRATH_RECONNECT_GRACE_MS: '5000', VEYRATH_LOG_LEVEL: 'info' },
+  env: {
+    VEYRATH_RECONNECT_GRACE_MS: '5000',
+    VEYRATH_LOG_LEVEL: 'info',
+    VEYRATH_METRICS_FILE: resolve(outDir, 'metrics.jsonl'),
+  },
   onLine: log,
 });
+const proxy = impaired ? await startNetemProxy({ targetPort: port, ...impairment }) : null;
+if (proxy) {
+  url = `ws://127.0.0.1:${proxy.port}`;
+  log(
+    `smoke: clients connect through netem proxy ${url} — RTT ${impairment.latencyMs} ms ± ` +
+      `${impairment.jitterMs} ms, stall rate ${impairment.loss}`,
+  );
+}
 const pollSignal = { stopped: false };
 const poller = pollHealth(pollSignal);
 const { cmd, args } = clientCommand(packaged);
@@ -137,6 +161,7 @@ try {
   join?.kill();
   pollSignal.stopped = true;
   await poller;
+  await proxy?.close();
   server.kill();
   await server.exited;
 }
@@ -206,7 +231,7 @@ if (!aFinal || !bFinal) {
     'G3 Server simulation continues normally while one window is minimized and the other renders slowly',
     minimize?.minimized === true &&
       minimizedSeconds.length >= 3 &&
-      minSnapRate >= 25 &&
+      minSnapRate >= (impaired ? 20 : 25) &&
       serverHz !== null &&
       serverHz >= 28 &&
       bFinal.avgFps < aFinal.avgFps &&
@@ -217,6 +242,18 @@ if (!aFinal || !bFinal) {
       `avg FPS host ${aFinal.avgFps} vs slow join ${bFinal.avgFps}; ` +
       `input rate host ${aFinal.inputsPerSecond}/s, slow join ${bFinal.inputsPerSecond}/s`,
   );
+
+  results.push({
+    name: 'Network as seen by clients (informational)',
+    pass: true,
+    evidence:
+      `RTT host ${aFinal.rttMs} ms (jitter ${aFinal.rttJitterMs}), join ${bFinal.rttMs} ms (jitter ${bFinal.rttJitterMs}); ` +
+      `snapshot jitter host ${aFinal.snapshotJitterMs} ms, join ${bFinal.snapshotJitterMs} ms; ` +
+      `max snapshot gap host ${aFinal.maxSnapshotGapMs} ms; prediction corrections host ${aFinal.corrections}, join ${bFinal.corrections}` +
+      (proxy
+        ? `; proxy stalls injected ${proxy.stats.stalls} of ${proxy.stats.chunks} chunks`
+        : ''),
+  });
 
   // G4 — drop + rejoin, clean leave, other player unaffected
   const endHealth = health.at(-1);
@@ -253,8 +290,10 @@ for (const r of results) {
 }
 writeFileSync(
   resolve(outDir, 'results.json'),
-  JSON.stringify({ packaged, results, health }, null, 2),
+  JSON.stringify({ packaged, impairment, results, health }, null, 2),
 );
 writeFileSync(resolve(outDir, 'run.log'), logLines.join('\n'));
-console.log(`\nReports: .smoke/host.jsonl, .smoke/join.jsonl, .smoke/results.json, .smoke/run.log`);
+console.log(
+  `\nReports: .smoke/host.jsonl, .smoke/join.jsonl, .smoke/results.json, .smoke/metrics.jsonl, .smoke/run.log`,
+);
 process.exit(results.length && results.every((r) => r.pass) ? 0 : 1);
