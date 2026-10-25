@@ -5,6 +5,18 @@ interface PendingInput {
   input: PlayerInput;
 }
 
+/** One tick of the attack cooldown, mirroring the order in the server's stepWorld. */
+function stepCooldown(
+  cooldown: number,
+  attack: boolean,
+  cooldownTicks: number,
+): { cooldown: number; swung: boolean } {
+  const cd = cooldown > 0 ? cooldown - 1 : 0;
+  return attack && cd === 0
+    ? { cooldown: cooldownTicks, swung: true }
+    : { cooldown: cd, swung: false };
+}
+
 /**
  * Local-player prediction with server reconciliation. Inputs are applied immediately with the same
  * movement function the server uses; each snapshot resets to the server position and replays the
@@ -13,6 +25,10 @@ interface PendingInput {
  * The prediction only advances once per input tick (30 Hz). Drawn as-is on a 120–144 Hz screen the
  * local player visibly steps ("motion blur" in the first friend test), so the drawn position glides
  * from the previous step to the current one over one tick interval, like remote players do.
+ *
+ * The attack cooldown is predicted the same way, so the local swing can be shown the moment the
+ * key is pressed instead of a round trip later. Whether the swing hits is still decided only by the
+ * server (enemy HP and hit flashes come from snapshots).
  */
 export class Predictor {
   private pending: PendingInput[] = [];
@@ -22,6 +38,9 @@ export class Predictor {
   private lastStepAt = 0;
   private readonly stepMs: number;
   private offset = { x: 0, y: 0 };
+  private cooldown = 0;
+  /** When the predicted local swing last started, or null. */
+  private lastSwingAt: number | null = null;
   /** Distance between the old prediction and the reconciled one at the last snapshot. */
   lastCorrection = 0;
   corrections = 0;
@@ -44,6 +63,8 @@ export class Predictor {
     this.previous = null;
     this.offset = { x: 0, y: 0 };
     this.lastCorrection = 0;
+    this.cooldown = 0;
+    this.lastSwingAt = null;
   }
 
   applyLocal(seq: number, input: PlayerInput, now = 0): void {
@@ -51,14 +72,24 @@ export class Predictor {
     this.previous = this.predicted;
     this.lastStepAt = now;
     this.predicted = movePlayer(this.predicted.x, this.predicted.y, input, this.config);
+    const cd = stepCooldown(this.cooldown, input.attack, this.config.attackCooldownTicks);
+    this.cooldown = cd.cooldown;
+    if (cd.swung) this.lastSwingAt = now;
     this.pending.push({ seq, input });
     if (this.pending.length > this.maxPending) this.pending.shift();
   }
 
-  reconcile(serverX: number, serverY: number, ack: number): void {
+  reconcile(serverX: number, serverY: number, ack: number, serverCooldown?: number): void {
     while (this.pending.length > 0 && this.pending[0]!.seq <= ack) this.pending.shift();
     let pos = { x: serverX, y: serverY };
     for (const p of this.pending) pos = movePlayer(pos.x, pos.y, p.input, this.config);
+    if (serverCooldown !== undefined) {
+      let cd = serverCooldown;
+      for (const p of this.pending) {
+        cd = stepCooldown(cd, p.input.attack, this.config.attackCooldownTicks).cooldown;
+      }
+      this.cooldown = cd;
+    }
 
     if (this.predicted) {
       const ex = this.predicted.x - pos.x;
@@ -76,6 +107,11 @@ export class Predictor {
       }
     }
     this.predicted = pos;
+  }
+
+  /** Milliseconds since the predicted local swing started, or null if there hasn't been one. */
+  swingAgeMs(now: number): number | null {
+    return this.lastSwingAt === null ? null : now - this.lastSwingAt;
   }
 
   /**

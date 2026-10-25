@@ -8,6 +8,7 @@ import { createWebSocketTransport } from './net/transport';
 import { DebugOverlay } from './overlay';
 import { connectionQuality } from './quality';
 import { Renderer } from './render';
+import { ResumeStore, browserStorage } from './resume';
 import { Autopilot, SmokeRecorder, runSmokeScript } from './smoke';
 import './styles.css';
 
@@ -33,6 +34,24 @@ function savePref(key: string, value: string): void {
     localStorage.setItem(`veyrath.${key}`, value);
   } catch {
     // Preferences are a convenience only.
+  }
+}
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback for when the async clipboard API is unavailable.
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.style.position = 'fixed';
+    area.style.opacity = '0';
+    document.body.append(area);
+    area.select();
+    const ok = document.execCommand('copy');
+    area.remove();
+    return ok;
   }
 }
 
@@ -66,6 +85,15 @@ async function main(): Promise<void> {
 
   nameInput.value = loadPref(`name.${config.instance}`) ?? `Player${config.instance}`;
   serverInput.value = config.serverUrl;
+  // Pre-fill the last room so rejoining after a restart is one click.
+  roomInput.value = loadPref(`lastRoom.${config.instance}`) ?? '';
+  const resume = new ResumeStore(
+    config.smoke ? null : browserStorage(),
+    `veyrath.resume.${config.instance}`,
+  );
+  let resuming = false;
+  const RESUME_FAILED_TEXT = 'Your last game ended. Click Join room to go back in.';
+  let resumeFailed = false;
 
   const renderer = new Renderer(el<HTMLCanvasElement>('game'), DEFAULT_SIM_CONFIG);
   const overlay = new DebugOverlay(el<HTMLPreElement>('overlay'));
@@ -91,16 +119,34 @@ async function main(): Promise<void> {
     {
       onPhase: (phase, detail) => {
         keyboard.enabled = phase === 'in_room';
-        showPhase(phase, detail);
+        // Leaving, being kicked, or giving up on a lost connection: there's nothing to resume.
+        if (phase === 'idle') resume.clear();
+        showPhase(phase, resumeFailed && phase === 'idle' ? RESUME_FAILED_TEXT : detail);
+        resumeFailed = false;
         recorder?.onPhase(phase);
       },
       onWelcome: (welcome, rejoined) => {
         hudRoom.textContent = welcome.room;
+        resuming = false;
+        roomInput.value = welcome.room;
+        savePref(`lastRoom.${config.instance}`, welcome.room);
+        resume.save({
+          url: session.serverUrl,
+          room: welcome.room,
+          playerId: welcome.playerId,
+          token: welcome.token,
+          graceMs: welcome.reconnectGraceMs,
+        });
         recorder?.onWelcome(welcome.playerId, welcome.room, rejoined);
       },
       onSnapshot: (snapshot) => recorder?.onSnapshot(snapshot),
       onError: (code, message) => {
         lobbyStatus.textContent = message;
+        if (resuming && code === 'rejoin_failed') {
+          resuming = false;
+          resumeFailed = true;
+          lobbyStatus.textContent = RESUME_FAILED_TEXT;
+        }
         recorder?.onError(code, message);
         if (code === 'version_mismatch' && config.updatesEnabled) {
           lobbyStatus.textContent = 'Your game is older than the host’s. Updating…';
@@ -145,6 +191,30 @@ async function main(): Promise<void> {
   });
 
   showPhase('idle', 'Create a room, or join one with its code.');
+
+  // Reopened within the server's grace time? Come back as the same player.
+  const ticket = resume.loadUsable();
+  if (ticket) {
+    resuming = true;
+    session.resume(ticket.url, ticket.room, ticket.playerId, ticket.token);
+    lobbyStatus.textContent = `Resuming your game in room ${ticket.room}…`;
+  }
+  // While connected, keep the ticket's timestamp fresh (wall clock, so it survives a restart).
+  setInterval(() => {
+    if (session.phase === 'in_room') resume.touch();
+  }, 1000);
+
+  // Click the room code to copy it for sharing.
+  hudRoom.addEventListener('click', () => {
+    const code = hudRoom.textContent ?? '';
+    if (!isValidRoomCode(code)) return;
+    void copyText(code).then((ok) => {
+      hudStatus.textContent = ok ? 'code copied ✓' : 'copy failed';
+      setTimeout(() => {
+        if (session.phase === 'in_room') hudStatus.textContent = 'connected';
+      }, 1500);
+    });
+  });
 
   let hideUpdateTimer: ReturnType<typeof setTimeout> | null = null;
   window.veyrath?.onUpdateStatus?.((status) => {
@@ -214,7 +284,8 @@ async function main(): Promise<void> {
       view && {
         ...view,
         localPlayerId: session.playerId,
-        localPosition: session.predictor.renderPosition(dt, performance.now()),
+        localPosition: session.predictor.renderPosition(dt, now),
+        localSwingAgeMs: session.predictor.swingAgeMs(now),
       },
     );
 

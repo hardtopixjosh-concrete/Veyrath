@@ -225,3 +225,8 @@ button:disabled {
 .update[data-state='unavailable'] {
   color: #8b949e;
 }
+
+#hud-room {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}

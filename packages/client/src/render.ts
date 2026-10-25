@@ -8,7 +8,32 @@ export interface RenderView {
   localPlayerId: string | null;
   /** Predicted position for the local player (drawn instead of the interpolated one). */
   localPosition: { x: number; y: number } | null;
+  /** Milliseconds since the local player's predicted swing started, or null. */
+  localSwingAgeMs: number | null;
   renderTick: number;
+}
+
+/** How long a swing ring stays on screen: 6 ticks at 30 Hz. */
+const SWING_VISIBLE_MS = 200;
+const SWING_VISIBLE_TICKS = 6;
+
+/**
+ * Whether to draw a player's swing ring. Remote players use the server's record (drawn in the
+ * interpolated past, so it lines up with where they are drawn). The local player uses the
+ * predicted swing so it appears on the key press; the server's later record of the same swing is
+ * ignored, and only shown if the prediction missed it.
+ */
+export function swingVisible(
+  isLocal: boolean,
+  lastAttackTick: number,
+  renderTick: number,
+  localSwingAgeMs: number | null,
+): boolean {
+  const serverSwing = lastAttackTick >= 0 && renderTick - lastAttackTick < SWING_VISIBLE_TICKS;
+  if (!isLocal) return serverSwing;
+  if (localSwingAgeMs !== null && localSwingAgeMs < SWING_VISIBLE_MS) return true;
+  const predictedRecently = localSwingAgeMs !== null && localSwingAgeMs < 1000;
+  return serverSwing && !predictedRecently;
 }
 
 /** Placeholder 2D renderer: circles for players, a square for the enemy. */
@@ -78,7 +103,13 @@ export class Renderer {
       for (const p of view.players) {
         const isLocal = p.id === view.localPlayerId;
         const pos = isLocal && view.localPosition ? view.localPosition : p;
-        this.drawPlayer(p, pos.x, pos.y, isLocal, view.renderTick);
+        const swinging = swingVisible(
+          isLocal,
+          p.lastAttackTick,
+          view.renderTick,
+          view.localSwingAgeMs,
+        );
+        this.drawPlayer(p, pos.x, pos.y, isLocal, swinging);
       }
     }
     ctx.restore();
@@ -114,13 +145,13 @@ export class Renderer {
     x: number,
     y: number,
     isLocal: boolean,
-    renderTick: number,
+    swinging: boolean,
   ): void {
     const { ctx, config } = this;
     const r = config.playerRadius;
     ctx.globalAlpha = p.connected ? 1 : 0.35;
 
-    if (p.lastAttackTick >= 0 && renderTick - p.lastAttackTick < 6) {
+    if (swinging) {
       ctx.strokeStyle = 'rgba(255,255,255,0.5)';
       ctx.lineWidth = 3;
       ctx.beginPath();

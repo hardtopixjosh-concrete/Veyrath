@@ -68,3 +68,11 @@ Short log of decisions made for this codebase. Newest last.
     2 s, drop only after 15 s with no message and no pong (`deadPeerTimeoutMs`). Client: 4 s with
     no server message (8 s while first connecting) = connection lost → normal rejoin path. Together
     a short blip rejoins as the same player instead of waiting for the OS to notice.
+23. **2026-10-25 — Predicted local swing (Milestone 2b).** The client predicts its own attack
+    cooldown with the server's exact rule and draws the swing ring on the key press; the server's
+    later record of the same swing is not drawn again. Hits, HP and hit flashes stay server-only.
+24. **2026-10-25 — Resume after restart.** The rejoin ticket (room, player id, token, last-seen
+    time) is kept in the profile's localStorage and refreshed every second while connected.
+    Reopening the game within the server's grace time (minus a 1.5 s margin) rejoins as the same
+    player; leaving or giving up clears it. The lobby also pre-fills the last room code, and the HUD
+    room code copies to the clipboard (the only permission the desktop app grants).

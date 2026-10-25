@@ -118,6 +118,16 @@ export class GameSession {
     return this.transport?.stats.bufferedAmount ?? 0;
   }
 
+  /** The server URL of the current (or last) connection attempt. */
+  get serverUrl(): string {
+    return this.url;
+  }
+
+  /** Reclaims a held player slot, e.g. after the game was closed and reopened within the grace time. */
+  resume(url: string, room: string, playerId: string, token: string): void {
+    this.begin(url, { t: 'rejoin', v: PROTOCOL_VERSION, room, playerId, token });
+  }
+
   createRoom(url: string, name: string): void {
     this.begin(url, { t: 'create', v: PROTOCOL_VERSION, name });
   }
@@ -235,7 +245,7 @@ export class GameSession {
         }
         this.lastSnapshotAt = now;
         const me = msg.world.players.find((p) => p.id === this.playerId);
-        if (me) this.predictor.reconcile(me.x, me.y, msg.ack);
+        if (me) this.predictor.reconcile(me.x, me.y, msg.ack, me.attackCooldown);
         this.events.onSnapshot(msg);
         return;
       }

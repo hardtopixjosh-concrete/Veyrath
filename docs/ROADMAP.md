@@ -22,7 +22,7 @@ stand; 4–6 are reshaped as below. Each milestone still ends with passed / fail
 | --- | --------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
 | 1   | Network foundation          | **Done** | Two local clients, one authoritative world, all gates passed (see TESTING.md)                          |
 | 2   | Friend test over Tailscale  | **Done** | Ran 2026-10-25: 9/10 checks passed or passed after fixes, F4 partial (see TESTING.md)                  |
-| 2b  | Feel fixes from the metrics | Next     | Instant swing animation on keypress (server still decides hits); tuning only where numbers say so      |
+| 2b  | Feel fixes from the metrics | **Done** | 0.1.4: instant swing, resume as same player after restart, copy room code, remember last room          |
 | 3   | Content import              | Planned  | PixiJS renderer, content pipeline, one hero + weapon + VFX, the map, one boss (MILESTONE_3_PLAN.md)    |
 | 4   | Host-a-game                 | Planned  | **Host** button starts the bundled server; **Join** connects to a host's address; friend test repeated |
 | 5   | Steam                       | Later    | Own app ID (fee), Steam networking for reaching the host (no Tailscale), Steam identity, Steam updates |

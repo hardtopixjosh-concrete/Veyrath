@@ -210,8 +210,9 @@ void app.whenReady().then(() => {
       send: sendUpdateStatus,
     });
   }
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) =>
-    callback(false),
+  // Everything is denied except writing text to the clipboard (copying the room code).
+  session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) =>
+    callback(permission === 'clipboard-sanitized-write'),
   );
 
   ipcMain.handle('veyrath:get-config', (event) => {
