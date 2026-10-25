@@ -61,8 +61,7 @@ server bundle is copied to `apps/desktop/release/server/veyrath-server.cjs` (`no
 
 ## Status
 
-**Milestone 2 (friend test over Tailscale) is in progress.** Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md). Tooling is built and verified locally;
-the real two-location test has not been run yet. Follow [docs/FRIEND_TEST.md](docs/FRIEND_TEST.md).
+**Milestone 2 (friend test over Tailscale) is done (2026-10-25).** Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md). Results: [docs/TESTING.md](docs/TESTING.md) and [docs/FRIEND_TEST.md](docs/FRIEND_TEST.md).
 
 Milestone 1 is implemented and its acceptance gates pass **locally** (two windows, one PC). See
 [docs/TESTING.md](docs/TESTING.md) for what ran, the results, and known limitations. Nothing here

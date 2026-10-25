@@ -293,7 +293,7 @@ export class GameServer {
 
     ws.on('message', (data, isBinary) => this.handleMessage(conn, data, isBinary));
     ws.on('pong', () => {
-      conn.isAlive = true;
+      conn.lastSeenAt = performance.now();
       if (conn.pingSentAt !== null) conn.rttMs = performance.now() - conn.pingSentAt;
     });
     ws.on('close', (code) => this.handleClose(conn, code));
@@ -343,6 +343,7 @@ export class GameServer {
 
   private handleMessage(conn: ClientConnection, data: RawData, isBinary: boolean): void {
     if (conn.closed) return;
+    conn.lastSeenAt = performance.now();
     const size = rawByteLength(data);
     conn.bytesIn += size;
     conn.messagesIn++;
@@ -613,15 +614,23 @@ export class GameServer {
     });
   }
 
+  /**
+   * Pings every connection and drops ones that have been completely silent (no message, no pong)
+   * for `deadPeerTimeoutMs`. Several missed pings are tolerated so a short network blip doesn't cost
+   * a player their connection (first friend test: one missed ping dropped a 5-second outage).
+   */
   private heartbeat(): void {
+    const now = performance.now();
     for (const conn of this.connections) {
-      if (!conn.isAlive) {
-        this.log.info('terminating unresponsive connection', { conn: conn.id });
+      if (now - conn.lastSeenAt > this.config.deadPeerTimeoutMs) {
+        this.log.info('terminating unresponsive connection', {
+          conn: conn.id,
+          silentMs: Math.round(now - conn.lastSeenAt),
+        });
         conn.terminate();
         continue;
       }
-      conn.isAlive = false;
-      conn.pingSentAt = performance.now();
+      conn.pingSentAt = now;
       conn.ping();
     }
   }

@@ -185,7 +185,11 @@ describe('server behavior when clients stop rendering or reading', () => {
   });
 
   it('dead peers that stop answering heartbeats are terminated and held for rejoin', async () => {
-    const s = await startServer({ heartbeatIntervalMs: 150, reconnectGraceMs: 10_000 });
+    const s = await startServer({
+      heartbeatIntervalMs: 150,
+      deadPeerTimeoutMs: 400,
+      reconnectGraceMs: 10_000,
+    });
     server = s.server;
     const a = await connect(s.url);
     const b = await connect(s.url);

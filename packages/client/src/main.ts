@@ -214,7 +214,7 @@ async function main(): Promise<void> {
       view && {
         ...view,
         localPlayerId: session.playerId,
-        localPosition: session.predictor.renderPosition(dt),
+        localPosition: session.predictor.renderPosition(dt, performance.now()),
       },
     );
 

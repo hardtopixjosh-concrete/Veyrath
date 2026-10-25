@@ -61,3 +61,10 @@ Short log of decisions made for this codebase. Newest last.
     only (no range requests). Trust model: whoever runs the host's server can ship code to its
     players — acceptable between friends over Tailscale; Steam (or signing) is the long-term answer.
     Installed app name is `veyrath` (install dir and profile folder).
+21. **2026-10-25 — Local player drawn with inter-step smoothing** (friend test). The prediction
+    still advances one input per tick; rendering glides from the previous step over one tick
+    interval (≤ 33 ms of visual latency on your own movement) instead of stepping at 30 Hz.
+22. **2026-10-25 — Dead-connection detection on both ends** (friend test). Server: heartbeat every
+    2 s, drop only after 15 s with no message and no pong (`deadPeerTimeoutMs`). Client: 4 s with
+    no server message (8 s while first connecting) = connection lost → normal rejoin path. Together
+    a short blip rejoins as the same player instead of waiting for the OS to notice.

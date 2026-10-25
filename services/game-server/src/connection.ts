@@ -23,7 +23,8 @@ export interface RoomRef {
 
 export class ClientConnection {
   member: RoomRef | null = null;
-  isAlive = true;
+  /** Last time anything (message or pong) arrived from this client. */
+  lastSeenAt = performance.now();
   /** Server-measured round trip from the WebSocket heartbeat ping. */
   pingSentAt: number | null = null;
   rttMs: number | null = null;

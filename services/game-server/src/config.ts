@@ -27,6 +27,8 @@ export interface ServerConfig {
   /** Terminate a connection whose unsent buffer exceeds this. */
   maxBufferedBytes: number;
   heartbeatIntervalMs: number;
+  /** Drop a connection after this long with no message and no pong. Longer than a typical blip. */
+  deadPeerTimeoutMs: number;
   statsIntervalMs: number;
   logLevel: LogLevel;
   /** JSON-lines metrics output (events, server stats, client-reported stats); off when undefined. */
@@ -53,7 +55,8 @@ export const DEFAULT_SERVER_CONFIG: ServerConfig = Object.freeze({
   maxInvalidMessages: 20,
   snapshotSkipBufferedBytes: 64 * 1024,
   maxBufferedBytes: 1024 * 1024,
-  heartbeatIntervalMs: 5_000,
+  heartbeatIntervalMs: 2_000,
+  deadPeerTimeoutMs: 15_000,
   statsIntervalMs: 10_000,
   logLevel: 'info',
   metricsFile: undefined,

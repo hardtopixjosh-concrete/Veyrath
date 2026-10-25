@@ -88,20 +88,22 @@ it says **via DERP** (relayed — adds latency) or a direct address.
 
 ## Test checklist
 
+**Run on 2026-10-25** (host Player1, friend Charcoalbits, game versions 0.1.1 → 0.1.3 during the session). Metrics: `logs/metrics-2026-10-25T14-26-57.jsonl`, `logs/metrics-2026-10-25T14-48-07.jsonl`.
+
 Fill in **Passed / Failed / Not run** and notes. Don't mark anything passed that you didn't do.
 
-| #   | Check                                                                                                | Result  | Notes |
-| --- | ---------------------------------------------------------------------------------------------------- | ------- | ----- |
-| F1  | Friend's installer works, lobby shows the host's server, Join works                                  | Not run |       |
-| F2  | Both see each other move; both hit the enemy; HP bar matches on both screens                         | Not run |       |
-| F3  | Feel: own movement responsive; other player and enemy move smoothly (write down F3 ping/jitter)      | Not run |       |
-| F4  | 30 minutes in one room without an unexpected disconnect or long freeze                               | Not run |       |
-| F5  | Friend drops for ~5 s (Wi-Fi off, or `tailscale down` then `tailscale up`) → back as the same player | Not run |       |
-| F6  | Friend drops for > 20 s → returns to lobby with a message; can join again as a new player            | Not run |       |
-| F7  | Each player minimizes the game for 30 s; the other keeps playing normally                            | Not run |       |
-| F8  | Leave and re-join the room 3 times                                                                   | Not run |       |
-| F9  | Host stops the server (Ctrl+C) mid-game → friend lands in the lobby with a clear message, no crash   | Not run |       |
-| F10 | Tailscale path noted (`tailscale ping`: direct or DERP relay)                                        | Not run |       |
+| #   | Check                                                                                                | Result           | Notes                                                                                                                                                     |
+| --- | ---------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Friend's installer works, lobby shows the host's server, Join works                                  | Passed           | Installed 0.1.1 from the setup exe; joined first try                                                                                                      |
+| F2  | Both see each other move; both hit the enemy; HP bar matches on both screens                         | Passed           | Confirmed by both players                                                                                                                                 |
+| F3  | Feel: own movement responsive; other player and enemy move smoothly (write down F3 ping/jitter)      | Passed after fix | Own character looked "motion blurry" on both PCs (30 Hz steps on 120/144 Hz screens); fixed in 0.1.2, then smooth for both. Ping ~45 ms, jitter ~5 ms     |
+| F4  | 30 minutes in one room without an unexpected disconnect or long freeze                               | Partial          | ~38 min played, 0 unexpected disconnects, 0 corrections; but split by two server restarts for fixes. Longest uninterrupted stretch ~10 min                |
+| F5  | Friend drops for ~5 s (Wi-Fi off, or `tailscale down` then `tailscale up`) → back as the same player | Passed after fix | Used Tailscale Disconnect. 0.1.1: server dropped him after one missed ping, had to rejoin as new player. 0.1.3: rejoined automatically as the same player |
+| F6  | Friend drops for > 20 s → returns to lobby with a message; can join again as a new player            | Passed           | 30 s Tailscale disconnect, twice; old character released after 15 s grace                                                                                 |
+| F7  | Each player minimizes the game for 30 s; the other keeps playing normally                            | Passed           | Reported working by both                                                                                                                                  |
+| F8  | Leave and re-join the room 3 times                                                                   | Passed           | 3 leave/join cycles in the log, no errors                                                                                                                 |
+| F9  | Host stops the server (Ctrl+C) mid-game → friend lands in the lobby with a clear message, no crash   | Passed           | Friend confirmed                                                                                                                                          |
+| F10 | Tailscale path noted (`tailscale ping`: direct or DERP relay)                                        | Not run          | Not checked; ~45 ms ping suggests a direct or nearby path                                                                                                 |
 
 ## Afterwards — send back to Claude
 

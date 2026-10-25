@@ -32,6 +32,30 @@ describe('Predictor (client prediction + reconciliation)', () => {
     expect(pos.x).toBeCloseTo(100, 1);
   });
 
+  it('glides between input steps instead of jumping once per tick', () => {
+    const p = new Predictor(DEFAULT_SIM_CONFIG);
+    p.reconcile(100, 100, 0);
+    const step = DEFAULT_SIM_CONFIG.playerSpeed / DEFAULT_SIM_CONFIG.tickRate;
+    const tickMs = 1000 / DEFAULT_SIM_CONFIG.tickRate;
+    p.applyLocal(1, right, 1000);
+    // Right at the step: still at the previous position. Halfway: halfway. After a full tick: there.
+    expect(p.renderPosition(0, 1000)!.x).toBeCloseTo(100, 2);
+    expect(p.renderPosition(0, 1000 + tickMs / 2)!.x).toBeCloseTo(100 + step / 2, 1);
+    expect(p.renderPosition(0, 1000 + tickMs)!.x).toBeCloseTo(100 + step, 2);
+    expect(p.renderPosition(0, 1000 + tickMs * 5)!.x).toBeCloseTo(100 + step, 2);
+  });
+
+  it('a correction mid-glide does not make the drawn position jump', () => {
+    const p = new Predictor(DEFAULT_SIM_CONFIG);
+    p.reconcile(100, 100, 0);
+    const tickMs = 1000 / DEFAULT_SIM_CONFIG.tickRate;
+    p.applyLocal(1, right, 1000);
+    const before = p.renderPosition(0, 1000 + tickMs / 2)!;
+    p.reconcile(100, 100, 1); // server says the step didn't happen (blocked)
+    const after = p.renderPosition(0, 1000 + tickMs / 2)!;
+    expect(Math.abs(after.x - before.x)).toBeLessThan(0.01);
+  });
+
   it('bounds pending inputs', () => {
     const p = new Predictor(DEFAULT_SIM_CONFIG, 10);
     p.reconcile(100, 100, 0);

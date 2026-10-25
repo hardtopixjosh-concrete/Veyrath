@@ -37,6 +37,13 @@ interface Credentials {
 /** Don't keep queueing inputs onto a socket that is not draining. */
 const MAX_LOCAL_BUFFERED_BYTES = 16 * 1024;
 const RECONNECT_RETRY_MS = 1000;
+/**
+ * The server sends ~30 snapshots a second, so this much silence means the connection is dead even
+ * if the OS hasn't noticed (a dropped Wi-Fi or VPN link can leave a socket "open" for minutes).
+ */
+const SILENCE_TIMEOUT_MS = 4000;
+/** First connect gets longer: the server may be slow to accept, and nothing streams yet. */
+const CONNECT_TIMEOUT_MS = 8000;
 /** Max inputs sent in one timer callback to catch up after a stalled main thread. */
 const MAX_INPUT_CATCH_UP = 4;
 
@@ -70,6 +77,8 @@ export class GameSession {
   private inputTimer: ReturnType<typeof setInterval> | null = null;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private watchdogTimer: ReturnType<typeof setInterval> | null = null;
+  private lastHeardAt = 0;
   private inputIntervalMs = 1000 / DEFAULT_SIM_CONFIG.tickRate;
   private nextInputAt = 0;
   private reconnectDeadline = 0;
@@ -164,11 +173,28 @@ export class GameSession {
     const transport = this.createTransport(url, {
       onOpen: () => transport.send(encodeMessage(first)),
       onMessage: (text) => {
-        if (transport === this.transport) this.handleMessage(text);
+        if (transport !== this.transport) return;
+        this.lastHeardAt = this.now();
+        this.handleMessage(text);
       },
       onClose: (code, reason) => this.handleClose(transport, code, reason),
     });
     this.transport = transport;
+    this.lastHeardAt = this.now();
+    if (!this.watchdogTimer) this.watchdogTimer = setInterval(() => this.checkSilence(), 1000);
+  }
+
+  /** Treats a silent connection as lost so the normal reconnect path runs without waiting for the OS. */
+  private checkSilence(): void {
+    const transport = this.transport;
+    if (!transport) return;
+    const limit = this.phase === 'connecting' ? CONNECT_TIMEOUT_MS : SILENCE_TIMEOUT_MS;
+    if (this.now() - this.lastHeardAt < limit) return;
+    this.transportLost(
+      4000,
+      this.phase === 'connecting' ? 'Server not reachable' : 'Server stopped responding',
+    );
+    transport.close(4000, 'no data from server');
   }
 
   private handleMessage(text: string): void {
@@ -236,7 +262,13 @@ export class GameSession {
   }
 
   private handleClose(transport: Transport, code: number, reason: string): void {
-    if (transport !== this.transport) return; // an old socket we already replaced
+    if (transport !== this.transport) return; // an old socket we already replaced or abandoned
+    this.transportLost(code, reason);
+  }
+
+  private transportLost(code: number, reason: string): void {
+    const transport = this.transport;
+    if (!transport) return;
     this.retire(transport);
     this.transport = null;
     this.stopTimers();
@@ -319,7 +351,7 @@ export class GameSession {
         attack: input.attack,
       }),
     );
-    if (sent) this.predictor.applyLocal(seq, input);
+    if (sent) this.predictor.applyLocal(seq, input, this.now());
   }
 
   private sendPing(): void {
@@ -336,6 +368,10 @@ export class GameSession {
   private shutdown(phase: SessionPhase, detail: string): void {
     this.stopTimers();
     this.clearReconnectTimer();
+    if (phase === 'idle' && this.watchdogTimer) {
+      clearInterval(this.watchdogTimer);
+      this.watchdogTimer = null;
+    }
     const transport = this.transport;
     this.transport = null;
     if (transport) {

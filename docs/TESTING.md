@@ -106,6 +106,46 @@ Done on one PC before the real friend test. **None of this replaces the two-loca
 - **Not yet verified:** an update over Tailscale between two PCs (download speed depends on the
   host's upload), and SmartScreen behaviour on the friend's PC for the installer and for updates.
 
+## Milestone 2 — friend test over Tailscale (2026-10-25)
+
+First real two-location session: host on Windows 11 here, friend on his own PC and internet
+connection, Tailscale between them. About 38 minutes of play across two server runs. Checklist with
+per-item notes: [FRIEND_TEST.md](FRIEND_TEST.md).
+
+| Measure (friend)       | Result                                                         |
+| ---------------------- | -------------------------------------------------------------- |
+| Ping (client-measured) | avg 45 ms, p95 ≈ 52 ms, max 61 ms (server-measured: avg 41 ms) |
+| Ping jitter            | avg ≈ 5 ms, p95 ≈ 14 ms                                        |
+| Updates received       | steady 30/s outside the deliberate disconnects                 |
+| Longest normal gap     | ≈ 110–190 ms between snapshots (p95 ≈ 60–90 ms)                |
+| Prediction corrections | 0 over the whole session                                       |
+| FPS                    | 144 (friend), 120 (host)                                       |
+
+| Measure (server)  | Result                                                                  |
+| ----------------- | ----------------------------------------------------------------------- |
+| Tick time         | avg 0.1 ms, worst 4.5 ms; 0 tick-loop resets                            |
+| Memory            | RSS ≈ 50–56 MB, heap ≈ 7–9 MB, flat                                     |
+| Bad input         | 0 rejected inputs, 0 invalid messages, 0 rate-limit drops               |
+| Skipped snapshots | 416, all during deliberate Tailscale disconnects (backpressure working) |
+
+**Found and fixed during the session:**
+
+1. **Local player looked "motion blurry"** on both PCs, including the host at 0.3 ms ping. Cause:
+   the predicted position advanced only at the 30 Hz input rate, so on 120/144 Hz screens it moved
+   in visible steps. Fix (0.1.2): draw the local player gliding between the last two predicted
+   steps. Both players confirmed smooth afterwards.
+2. **A 5-second network drop cost the friend his character.** The server dropped any connection
+   that missed one 5 s heartbeat, and the client only noticed a dead link when the OS closed the
+   socket. Fix (0.1.3): the server drops a peer only after 15 s of complete silence (heartbeat every
+   2 s), and the client treats 4 s without any server message as lost and starts rejoining at once.
+   Retest: the friend rejoined automatically as the same player.
+
+Both fixes reached the friend through the **auto-updater over the internet** (0.1.1 → 0.1.2 →
+0.1.3, about 110 MB each from the host's upload).
+
+**Not proven:** a single uninterrupted 30-minute stretch (longest ≈ 10 min, because of the
+restarts for the fixes), and the Tailscale path type (direct vs relay) was not recorded.
+
 ## Known limitations
 
 - Everything was verified on **one PC over loopback**. RTT ≈ 0.3 ms; no latency, loss, jitter, NAT,
