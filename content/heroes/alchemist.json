@@ -1,0 +1,36 @@
+{
+  "id": "alchemist",
+  "kind": "hero",
+  "gameplay": {
+    "maxHp": 100,
+    "speed": 220,
+    "radius": 16,
+    "attacks": [
+      {
+        "id": "potion-throw",
+        "damage": 10,
+        "reach": 40,
+        "cooldownTicks": 12,
+        "windUpTicks": 0
+      }
+    ]
+  },
+  "presentation": {
+    "name": "Alchemist",
+    "placeholder": {
+      "shape": "circle",
+      "color": "#81c784"
+    },
+    "model": {
+      "file": "heroes/alchemist.glb",
+      "weaponsFile": "heroes/weapons-ranger.glb",
+      "weapon": "potion",
+      "heightUnits": 1.81,
+      "clips": {
+        "idle": "Idle",
+        "run": "Run",
+        "attack": "R_potion"
+      }
+    }
+  }
+}

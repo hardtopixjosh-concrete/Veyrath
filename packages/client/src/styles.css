@@ -20,12 +20,17 @@ body {
   display: none !important;
 }
 
-#game {
+#game,
+#heroes {
   position: fixed;
   inset: 0;
   width: 100%;
   height: 100%;
   display: block;
+}
+
+#heroes {
+  pointer-events: none;
 }
 
 .panel {

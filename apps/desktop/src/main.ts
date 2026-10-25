@@ -7,7 +7,7 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, join, normalize, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
   BrowserWindow,
@@ -15,6 +15,8 @@ import {
   app,
   dialog,
   ipcMain,
+  net,
+  protocol,
   session,
   type IpcMainEvent,
   type IpcMainInvokeEvent,
@@ -54,8 +56,28 @@ app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
-const rendererIndex = join(__dirname, 'renderer', 'index.html');
-const rendererUrl = pathToFileURL(rendererIndex).href;
+// The page and its assets are served from the app folder through a private app://veyrath origin.
+// Chromium refuses fetch() on file:// URLs, which 3D model loading needs; a privileged scheme
+// restricted to the renderer folder is the recommended secure alternative.
+const rendererDir = join(__dirname, 'renderer');
+const APP_HOST = 'veyrath';
+const rendererUrl = `app://${APP_HOST}/index.html`;
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+]);
+
+/** Maps app://veyrath/<path> to a file inside the renderer folder, or null if it's outside it. */
+function appFileFor(requestUrl: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(requestUrl);
+  } catch {
+    return null;
+  }
+  if (url.host !== APP_HOST) return null;
+  const file = normalize(join(rendererDir, decodeURIComponent(url.pathname)));
+  return file.startsWith(rendererDir + sep) ? file : null;
+}
 const smoke = options.smoke;
 
 // Main-process log in the profile folder: an installed game has no console, so this is the only
@@ -103,7 +125,7 @@ function isTrustedSender(event: IpcMainEvent | IpcMainInvokeEvent): boolean {
   if (!url) return false;
   try {
     const u = new URL(url);
-    return u.protocol === 'file:' && u.pathname === new URL(rendererUrl).pathname;
+    return u.protocol === 'app:' && u.host === APP_HOST && u.pathname === '/index.html';
   } catch {
     return false;
   }
@@ -192,7 +214,7 @@ function createWindow(): BrowserWindow {
     if (lastUpdateStatus) win.webContents.send('veyrath:update-status', lastUpdateStatus);
   });
 
-  void win.loadFile(rendererIndex);
+  void win.loadURL(rendererUrl);
   mainWindow = win;
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null;
@@ -201,6 +223,11 @@ function createWindow(): BrowserWindow {
 }
 
 void app.whenReady().then(() => {
+  protocol.handle('app', (request) => {
+    const file = appFileFor(request.url);
+    if (!file || !existsSync(file)) return new Response('not found', { status: 404 });
+    return net.fetch(pathToFileURL(file).href);
+  });
   if (app.isPackaged) Menu.setApplicationMenu(null);
   if (app.isPackaged && !smoke && !options.noUpdate) {
     updater = createUpdater({

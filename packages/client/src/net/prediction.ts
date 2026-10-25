@@ -109,6 +109,11 @@ export class Predictor {
     this.predicted = pos;
   }
 
+  /** When the predicted local swing started (same clock as `now`), or null. */
+  get swingStartedAt(): number | null {
+    return this.lastSwingAt;
+  }
+
   /** Milliseconds since the predicted local swing started, or null if there hasn't been one. */
   swingAgeMs(now: number): number | null {
     return this.lastSwingAt === null ? null : now - this.lastSwingAt;

@@ -1,5 +1,5 @@
 import { buildContentPack, contentVersion, validateContent } from '@veyrath/content';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -106,7 +106,7 @@ describe('content pack', () => {
     const r = buildContentPack(loadAllContentFiles());
     expect(r).toMatchObject({ ok: true });
     if (r.ok) {
-      expect(r.pack.heroes.map((h) => h.id)).toEqual(['placeholder-hero']);
+      expect(r.pack.heroes.map((h) => h.id)).toEqual(['alchemist', 'placeholder-hero']);
       expect(r.pack.enemies.map((e) => e.id)).toEqual(['placeholder-enemy']);
       expect(r.pack.bosses.map((b) => b.id)).toEqual(['placeholder-boss']);
     }
@@ -131,7 +131,7 @@ describe('content pack', () => {
   it('placeholder data matches the Milestone 1 hard-coded rules', () => {
     const r = buildContentPack(loadAllContentFiles());
     if (!r.ok) throw new Error(r.errors.join('\n'));
-    const h = r.pack.heroes[0]!;
+    const h = r.pack.heroes.find((x) => x.id === 'placeholder-hero')!;
     const e = r.pack.enemies[0]!;
     expect(h.gameplay).toMatchObject({ speed: 220, radius: 16 });
     expect(h.gameplay.attacks[0]).toMatchObject({ damage: 10, reach: 40, cooldownTicks: 12 });
@@ -157,12 +157,16 @@ describe('contentVersion', () => {
     const v = contentVersion(base);
     const gameplayChanged = {
       ...base,
-      heroes: [{ ...base.heroes[0]!, gameplay: { ...base.heroes[0]!.gameplay, speed: 221 } }],
+      heroes: [
+        { ...base.heroes[0]!, gameplay: { ...base.heroes[0]!.gameplay, speed: 221 } },
+        ...base.heroes.slice(1),
+      ],
     };
     const lookChanged = {
       ...base,
       heroes: [
         { ...base.heroes[0]!, presentation: { ...base.heroes[0]!.presentation, name: 'Shiny' } },
+        ...base.heroes.slice(1),
       ],
     };
     expect(contentVersion(gameplayChanged)).not.toBe(v);
@@ -173,14 +177,76 @@ describe('contentVersion', () => {
     const base = pack();
     const reordered = {
       ...base,
-      heroes: [{ ...base.heroes[0]!, gameplay: { ...base.heroes[0]!.gameplay } }],
+      heroes: [
+        { ...base.heroes[0]!, gameplay: { ...base.heroes[0]!.gameplay } },
+        ...base.heroes.slice(1),
+      ],
     };
-    const g = reordered.heroes[0]!.gameplay as Record<string, unknown>;
+    const g = reordered.heroes[0]!.gameplay as unknown as Record<string, unknown>;
     const swapped = Object.fromEntries(Object.entries(g).reverse());
     reordered.heroes[0] = {
       ...reordered.heroes[0]!,
       gameplay: swapped as typeof g & (typeof base.heroes)[0]['gameplay'],
     };
     expect(contentVersion(reordered)).toBe(contentVersion(base));
+  });
+});
+
+describe('3D model definitions', () => {
+  const withModel = (model: unknown) => ({
+    ...hero,
+    presentation: { ...hero.presentation, model },
+  });
+  const good = {
+    file: 'heroes/alchemist.glb',
+    weaponsFile: 'heroes/weapons-ranger.glb',
+    weapon: 'potion',
+    heightUnits: 1.81,
+    clips: { idle: 'Idle', run: 'Run', attack: 'R_potion' },
+  };
+
+  it('accepts a model and keeps only known fields', () => {
+    const r = validateContent(withModel({ ...good, extra: 1 }));
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.def.presentation.model).toEqual(good);
+  });
+
+  it.each([
+    ['non-glb file', { ...good, file: 'heroes/alchemist.png' }],
+    ['absolute path', { ...good, file: 'C:/x/alchemist.glb' }],
+    ['bad height', { ...good, heightUnits: 0 }],
+    ['missing clip', { ...good, clips: { idle: 'Idle', run: 'Run' } }],
+    ['bad weapon name', { ...good, weapon: '../potion' }],
+  ])('rejects %s', (_label, model) => {
+    expect(validateContent(withModel(model)).ok).toBe(false);
+  });
+
+  it('the shipped Alchemist file points at files that exist and plays the same rules as before', () => {
+    const r = buildContentPack(loadAllContentFiles());
+    if (!r.ok) throw new Error(r.errors.join('; '));
+    const a = r.pack.heroes.find((x) => x.id === 'alchemist')!;
+    const model = a.presentation.model!;
+    for (const f of [model.file, model.weaponsFile!]) {
+      expect(existsSync(resolve(__dirname, '../../packages/client/public/assets', f))).toBe(true);
+    }
+    expect(a.gameplay).toMatchObject({ speed: 220, radius: 16 });
+  });
+
+  it('a visual-only change (new model) does not change the content version', () => {
+    const r = buildContentPack(loadAllContentFiles());
+    if (!r.ok) throw new Error(r.errors.join('; '));
+    const v = contentVersion(r.pack);
+    const heroes = r.pack.heroes.map((x) =>
+      x.id === 'alchemist'
+        ? {
+            ...x,
+            presentation: {
+              ...x.presentation,
+              model: { ...x.presentation.model!, weapon: 'bombbag' },
+            },
+          }
+        : x,
+    );
+    expect(contentVersion({ ...r.pack, heroes })).toBe(v);
   });
 });

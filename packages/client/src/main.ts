@@ -1,7 +1,10 @@
+import { validateContent } from '@veyrath/content';
 import { isValidPlayerName, isValidRoomCode } from '@veyrath/protocol';
 import { DEFAULT_SIM_CONFIG } from '@veyrath/sim';
 import { loadClientConfig } from './config';
 import { KeyboardInput } from './input';
+import alchemistContent from '../../../content/heroes/alchemist.json';
+import { HeroLayer, type HeroDraw } from './heroes3d';
 import { CounterRate, Ema } from './metrics';
 import { GameSession, type InputSource, type SessionPhase } from './net/session';
 import { createWebSocketTransport } from './net/transport';
@@ -36,6 +39,9 @@ function savePref(key: string, value: string): void {
     // Preferences are a convenience only.
   }
 }
+
+const IDLE_TEXT = 'Create a room, or join one with its code.';
+const LOADING_TEXT = 'Loading hero…';
 
 async function copyText(text: string): Promise<boolean> {
   try {
@@ -77,7 +83,7 @@ async function main(): Promise<void> {
   let currentPhase: SessionPhase = 'idle';
   const refreshLobbyButtons = (): void => {
     for (const button of lobby.querySelectorAll('button')) {
-      button.disabled = currentPhase === 'connecting' || updating;
+      button.disabled = currentPhase === 'connecting' || updating || heroLoading;
     }
   };
   const hudQuality = el<HTMLDivElement>('hud-quality');
@@ -96,6 +102,23 @@ async function main(): Promise<void> {
   let resumeFailed = false;
 
   const renderer = new Renderer(el<HTMLCanvasElement>('game'), DEFAULT_SIM_CONFIG);
+  // Every player is drawn as the hero model from its content file; circles until it has loaded.
+  const heroLayer = new HeroLayer(el<HTMLCanvasElement>('heroes'));
+  const hero = validateContent(alchemistContent);
+  if (!hero.ok) console.warn('hero content invalid', hero.errors);
+  const model = hero.ok ? hero.def.presentation.model : undefined;
+  // Joining waits for the hero model (at most 8 s), so loading never stalls the game in a room.
+  let heroLoading = Boolean(model);
+  const heroLoaded: Promise<void> = model
+    ? Promise.race([
+        heroLayer.load(model, new URL('./assets/', document.baseURI)),
+        new Promise<void>((r) => setTimeout(r, 8000)),
+      ]).then(() => {
+        heroLoading = false;
+        refreshLobbyButtons();
+        if (lobbyStatus.textContent === LOADING_TEXT) lobbyStatus.textContent = IDLE_TEXT;
+      })
+    : Promise.resolve();
   const overlay = new DebugOverlay(el<HTMLPreElement>('overlay'));
   const keyboard = new KeyboardInput(window);
   let inputSource: InputSource = keyboard;
@@ -190,14 +213,16 @@ async function main(): Promise<void> {
     }
   });
 
-  showPhase('idle', 'Create a room, or join one with its code.');
+  showPhase('idle', heroLoading ? LOADING_TEXT : IDLE_TEXT);
 
   // Reopened within the server's grace time? Come back as the same player.
   const ticket = resume.loadUsable();
   if (ticket) {
     resuming = true;
-    session.resume(ticket.url, ticket.room, ticket.playerId, ticket.token);
     lobbyStatus.textContent = `Resuming your game in room ${ticket.room}…`;
+    void heroLoaded.then(() =>
+      session.resume(ticket.url, ticket.room, ticket.playerId, ticket.token),
+    );
   }
   // While connected, keep the ticket's timestamp fresh (wall clock, so it survives a restart).
   setInterval(() => {
@@ -253,7 +278,8 @@ async function main(): Promise<void> {
     recorder = new SmokeRecorder(config.smoke, session, report);
     inputSource = new Autopilot(session);
     overlay.toggle();
-    runSmokeScript(config.smoke, session, recorder, config.serverUrl);
+    const smoke = config.smoke;
+    void heroLoaded.then(() => runSmokeScript(smoke, session, recorder!, config.serverUrl));
   }
 
   // Network metrics for the server's log (a timer, so it keeps reporting while minimized).
@@ -280,14 +306,32 @@ async function main(): Promise<void> {
 
     const playing = session.phase === 'in_room' || session.phase === 'reconnecting';
     const view = playing ? session.snapshots.sample(now, INTERPOLATION_DELAY_TICKS) : null;
+    const localPosition = session.predictor.renderPosition(dt, now);
     renderer.draw(
       view && {
         ...view,
         localPlayerId: session.playerId,
-        localPosition: session.predictor.renderPosition(dt, now),
+        localPosition,
         localSwingAgeMs: session.predictor.swingAgeMs(now),
+        modelHeroes: heroLayer.ready,
       },
     );
+    const heroDraws: HeroDraw[] = (view?.players ?? []).map((p) => {
+      const isLocal = p.id === session.playerId;
+      const pos = isLocal && localPosition ? localPosition : p;
+      return {
+        id: p.id,
+        x: pos.x,
+        y: pos.y,
+        connected: p.connected,
+        swingKey: isLocal
+          ? session.predictor.swingStartedAt
+          : p.lastAttackTick >= 0
+            ? p.lastAttackTick
+            : null,
+      };
+    });
+    heroLayer.update(heroDraws, renderer.transform, now, dt);
 
     inRate.update(session.bytesReceived, now);
     outRate.update(session.bytesSent, now);

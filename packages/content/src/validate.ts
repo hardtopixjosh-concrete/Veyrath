@@ -1,4 +1,4 @@
-import type { AttackDef, ContentDef, ContentKind, ContentPack } from './types';
+import type { AttackDef, ContentDef, ContentKind, ContentPack, ModelDef } from './types';
 
 export type ValidationResult = { ok: true; def: ContentDef } | { ok: false; errors: string[] };
 
@@ -31,6 +31,34 @@ function checkAttack(a: unknown, where: string, errors: string[]): void {
   if (!num(a.reach, 0, 2_000)) errors.push(`${where}.reach must be 0..2000`);
   if (!num(a.cooldownTicks, 1, 3_000, true)) errors.push(`${where}.cooldownTicks must be 1..3000`);
   if (!num(a.windUpTicks, 0, 300, true)) errors.push(`${where}.windUpTicks must be 0..300`);
+}
+
+const NAME_PATTERN = /^[A-Za-z0-9_.-]{1,64}$/;
+
+function checkModel(m: unknown, errors: string[]): void {
+  if (!isRecord(m)) {
+    errors.push('presentation.model must be an object');
+    return;
+  }
+  const isGlb = (v: unknown) => typeof v === 'string' && PATH_PATTERN.test(v) && v.endsWith('.glb');
+  if (!isGlb(m.file)) errors.push('presentation.model.file must be a relative .glb path');
+  if (m.weaponsFile !== undefined && !isGlb(m.weaponsFile)) {
+    errors.push('presentation.model.weaponsFile must be a relative .glb path');
+  }
+  if (m.weapon !== undefined && (typeof m.weapon !== 'string' || !NAME_PATTERN.test(m.weapon))) {
+    errors.push('presentation.model.weapon must be a node name');
+  }
+  if (!num(m.heightUnits, 0.01, 1000))
+    errors.push('presentation.model.heightUnits must be 0.01..1000');
+  const c = m.clips;
+  if (!isRecord(c)) errors.push('presentation.model.clips must be an object');
+  else {
+    for (const k of ['idle', 'run', 'attack'] as const) {
+      if (typeof c[k] !== 'string' || !NAME_PATTERN.test(c[k])) {
+        errors.push(`presentation.model.clips.${k} must be a clip name`);
+      }
+    }
+  }
 }
 
 /**
@@ -95,6 +123,7 @@ export function validateContent(raw: unknown): ValidationResult {
         errors.push(`presentation.${key} must be a relative asset path`);
       }
     }
+    if (p.model !== undefined) checkModel(p.model, errors);
     for (const key of ['animations', 'sounds'] as const) {
       const map = p[key];
       if (map === undefined) continue;
@@ -144,6 +173,7 @@ export function validateContent(raw: unknown): ValidationResult {
       name: (p.name as string).trim(),
       placeholder: { shape: ph.shape, color: ph.color.toLowerCase() },
       ...(p.spriteSheet !== undefined ? { spriteSheet: p.spriteSheet as string } : {}),
+      ...(p.model !== undefined ? { model: copyModel(p.model as Record<string, unknown>) } : {}),
       ...(p.animations !== undefined
         ? { animations: { ...(p.animations as Record<string, string>) } }
         : {}),
@@ -178,5 +208,16 @@ export function buildContentPack(raws: readonly unknown[]): PackResult {
   return {
     ok: true,
     pack: { heroes: byKind('hero'), enemies: byKind('enemy'), bosses: byKind('boss') },
+  };
+}
+
+function copyModel(m: Record<string, unknown>): ModelDef {
+  const c = m.clips as Record<string, string>;
+  return {
+    file: m.file as string,
+    ...(m.weaponsFile !== undefined ? { weaponsFile: m.weaponsFile as string } : {}),
+    ...(m.weapon !== undefined ? { weapon: m.weapon as string } : {}),
+    heightUnits: m.heightUnits as number,
+    clips: { idle: c.idle!, run: c.run!, attack: c.attack! },
   };
 }

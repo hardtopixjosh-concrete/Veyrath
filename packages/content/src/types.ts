@@ -43,8 +43,23 @@ export interface PresentationDef {
   };
   /** Path under the client's assets folder, when real art exists. */
   readonly spriteSheet?: string;
+  /** A rigged 3D model (glTF binary) drawn instead of a sprite. */
+  readonly model?: ModelDef;
   readonly animations?: Partial<Record<AnimationState, string>>;
   readonly sounds?: Partial<Record<'swing' | 'hit' | 'die', string>>;
+}
+
+export interface ModelDef {
+  /** Path under the client's assets folder, e.g. `heroes/alchemist.glb`. */
+  readonly file: string;
+  /** Optional file holding weapon meshes, one root node per weapon. */
+  readonly weaponsFile?: string;
+  /** Weapon root node to place in the right hand. */
+  readonly weapon?: string;
+  /** Model height in its own units, used to scale it to the game's size. */
+  readonly heightUnits: number;
+  /** Animation clip names in the model. */
+  readonly clips: { readonly idle: string; readonly run: string; readonly attack: string };
 }
 
 export interface ContentDef {

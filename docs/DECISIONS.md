@@ -76,3 +76,18 @@ Short log of decisions made for this codebase. Newest last.
     Reopening the game within the server's grace time (minus a 1.5 s margin) rejoins as the same
     player; leaving or giving up clears it. The lobby also pre-fills the last room code, and the HUD
     room code copies to the clipboard (the only permission the desktop app grants).
+25. **2026-10-25 — Milestone 3 starts: first hero is the Alchemist**, imported byte-for-byte from the
+    old game's shipped `ranger-alchemist.glb` plus `weapons-ranger.glb` (CC0 Quaternius sources;
+    see `assets/IMPORTED.md`). Assets only: no old code, docs or networking were read.
+26. **3D heroes on a 2D world**, as the original brief planned: a transparent Three.js layer over
+    the 2D canvas draws each player's rigged model with a screen-space orthographic camera (35°
+    view tilt), feet on the player's simulated position; the 2D canvas keeps the world, enemy,
+    rings, names and swing rings. Purely visual; the simulation is untouched. Model, weapon and
+    clip names come from the hero's content file (`presentation.model`). Circles remain the
+    fallback if loading fails.
+27. **The desktop app serves its files from `app://veyrath/`** (a privileged custom protocol
+    restricted to the renderer folder) instead of `file://`, because Chromium refuses `fetch()` on
+    `file://` and model loading needs it. CSP gains `blob:` for embedded textures.
+28. **Load before joining.** Create/Join (and automatic resume, and smoke runs) wait for the hero
+    model to load and its shaders to compile (≤ 8 s). Found in the two-window test: loading during
+    play froze the page ~0.5 s and cost inputs.

@@ -1,4 +1,5 @@
 import type { EnemySnapshot, PlayerSnapshot, SimConfig } from '@veyrath/sim';
+import type { ScreenTransform } from './heroes3d';
 
 const SLOT_COLORS = ['#4fc3f7', '#ffb74d', '#81c784', '#ba68c8', '#f06292'];
 
@@ -11,7 +12,12 @@ export interface RenderView {
   /** Milliseconds since the local player's predicted swing started, or null. */
   localSwingAgeMs: number | null;
   renderTick: number;
+  /** True when the 3D hero layer draws the bodies: the 2D canvas then draws only rings and names. */
+  modelHeroes: boolean;
 }
+
+/** Height of a drawn 3D hero on screen in world units (matches heroes3d at the 35° view). */
+const MODEL_HERO_SCREEN_HEIGHT = 50;
 
 /** How long a swing ring stays on screen: 6 ticks at 30 Hz. */
 const SWING_VISIBLE_MS = 200;
@@ -50,6 +56,17 @@ export class Renderer {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('2D canvas not available');
     this.ctx = ctx;
+  }
+
+  /** The world → screen mapping of the last drawn frame (CSS pixels). */
+  get transform(): ScreenTransform {
+    return {
+      scale: this.scale,
+      originX: this.originX,
+      originY: this.originY,
+      width: this.canvas.clientWidth,
+      height: this.canvas.clientHeight,
+    };
   }
 
   private fit(): void {
@@ -109,7 +126,7 @@ export class Renderer {
           view.renderTick,
           view.localSwingAgeMs,
         );
-        this.drawPlayer(p, pos.x, pos.y, isLocal, swinging);
+        this.drawPlayer(p, pos.x, pos.y, isLocal, swinging, view.modelHeroes);
       }
     }
     ctx.restore();
@@ -146,10 +163,12 @@ export class Renderer {
     y: number,
     isLocal: boolean,
     swinging: boolean,
+    modelHero: boolean,
   ): void {
     const { ctx, config } = this;
     const r = config.playerRadius;
     ctx.globalAlpha = p.connected ? 1 : 0.35;
+    const color = SLOT_COLORS[p.slot % SLOT_COLORS.length]!;
 
     if (swinging) {
       ctx.strokeStyle = 'rgba(255,255,255,0.5)';
@@ -159,20 +178,35 @@ export class Renderer {
       ctx.stroke();
     }
 
-    ctx.fillStyle = SLOT_COLORS[p.slot % SLOT_COLORS.length]!;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-    if (isLocal) {
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 3;
+    let labelY = y - r - 6;
+    if (modelHero) {
+      // The 3D layer draws the body; mark the feet with a shadow and a ring in the player's colour.
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * 0.9, r * 0.45, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = isLocal ? '#ffffff' : color;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.ellipse(x, y, r * 1.1, r * 0.55, 0, 0, Math.PI * 2);
       ctx.stroke();
+      labelY = y - MODEL_HERO_SCREEN_HEIGHT - 6;
+    } else {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      if (isLocal) {
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
     }
     ctx.fillStyle = '#c9d1d9';
     ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'center';
     const label = `${p.name}${isLocal ? ' (you)' : ''}${p.connected ? '' : ' (reconnecting)'}`;
-    ctx.fillText(label, x, y - r - 6);
+    ctx.fillText(label, x, labelY);
     ctx.globalAlpha = 1;
   }
 }

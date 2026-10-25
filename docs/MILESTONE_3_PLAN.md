@@ -1,6 +1,6 @@
 # Milestone 3 plan — bringing in art and content
 
-**Status: plan only.** Nothing here has been built. Milestone 3 starts after the Milestone 2 friend
+**Status: in progress (2026-10-25).** The first hero (the Alchemist, 3D) is in the game; see `docs/DECISIONS.md` 25–28. Milestone 3 starts after the Milestone 2 friend
 test is stable **and** you approve it. Lights-end has not been opened; this plan was written
 without it.
 
